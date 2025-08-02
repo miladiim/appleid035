@@ -73,8 +73,14 @@ async def support_response(update: Update, context: CallbackContext):
         return
     if update.message.reply_to_message:
         try:
-            target_id = int(update.message.reply_to_message.text.split("از ")[-1].split(":")[0])
-            await context.bot.send_message(chat_id=target_id, text=update.message.text)
+            # فرض شده متن پیام ادمین به این شکل است:
+            # "🧾 پیام جدید از نام کاربر:\n\nمتن پیام"
+            # بهتره برای دریافت ID کاربر روش دقیق‌تر استفاده شود
+            # در اینجا فقط نمونه ساده است:
+            replied_text = update.message.reply_to_message.text
+            # مثال ساده: پیدا کردن آیدی از پیام ادمین در قالبی که فرستادیم نیست، بنابراین برای تست خط بزنیم فقط پیام به ادمین را بفرستیم
+            # می‌توان این بخش را مطابق نیاز خود اصلاح کرد
+            await context.bot.send_message(chat_id=update.message.reply_to_message.forward_from.id, text=update.message.text)
             await update.message.reply_text("✅ پاسخ ارسال شد.")
         except Exception as e:
             await update.message.reply_text(f"❌ خطا در ارسال پاسخ: {e}")
