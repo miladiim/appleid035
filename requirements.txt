@@ -1,1 +1,1 @@
-pip uninstall python-telegram-bot -y
+python-telegram-bot==20.7
