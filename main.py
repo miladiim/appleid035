@@ -19,20 +19,25 @@ PRODUCTS = {
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: CallbackContext.DEFAULT_TYPE):
     user = update.effective_user
-    member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
-    if member.status in ["left", "kicked"]:
+    try:
+        member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
+    except Exception:
+        # اگر دسترسی نداشت یا خطا بود فرض کن عضو نیست
+        member = None
+
+    if not member or member.status in ["left", "kicked"]:
         btn = InlineKeyboardMarkup([[InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]])
         await update.message.reply_text(START_MSG, reply_markup=btn)
         return
 
     await update.message.reply_text(
         "📱 لطفاً شماره موبایل خود را به صورت دستی وارد کرده و روی دکمه زیر بزنید:",
-        reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True)
+        reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True, one_time_keyboard=True)
     )
 
-async def message_handler(update: Update, context: CallbackContext):
+async def message_handler(update: Update, context: CallbackContext.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
 
@@ -43,7 +48,7 @@ async def message_handler(update: Update, context: CallbackContext):
                 ["📦 اپل آیدی 2018 - 250 تومان"],
                 ["📦 اپل آیدی 2025 - 200 تومان"],
                 ["📝 اپل آیدی با اطلاعات شخصی - 350 تومان"]
-            ], resize_keyboard=True)
+            ], resize_keyboard=True, one_time_keyboard=True)
         )
     elif "2018" in text:
         user_data["product"] = "2018"
@@ -68,19 +73,16 @@ async def message_handler(update: Update, context: CallbackContext):
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
         await update.message.reply_text("✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید.")
 
-async def support_response(update: Update, context: CallbackContext):
+async def support_response(update: Update, context: CallbackContext.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
     if update.message.reply_to_message:
         try:
-            # فرض شده متن پیام ادمین به این شکل است:
-            # "🧾 پیام جدید از نام کاربر:\n\nمتن پیام"
-            # بهتره برای دریافت ID کاربر روش دقیق‌تر استفاده شود
-            # در اینجا فقط نمونه ساده است:
-            replied_text = update.message.reply_to_message.text
-            # مثال ساده: پیدا کردن آیدی از پیام ادمین در قالبی که فرستادیم نیست، بنابراین برای تست خط بزنیم فقط پیام به ادمین را بفرستیم
-            # می‌توان این بخش را مطابق نیاز خود اصلاح کرد
-            await context.bot.send_message(chat_id=update.message.reply_to_message.forward_from.id, text=update.message.text)
+            # فرض می‌کنیم پیام ادمین به صورت reply به پیام ارسالی کاربر است
+            original_msg = update.message.reply_to_message.text
+            # استخراج id کاربر از متن پیام (با فرض ساختار قبلی پیام)
+            target_id = int(original_msg.split("از ")[-1].split(":")[0])
+            await context.bot.send_message(chat_id=target_id, text=update.message.text)
             await update.message.reply_text("✅ پاسخ ارسال شد.")
         except Exception as e:
             await update.message.reply_text(f"❌ خطا در ارسال پاسخ: {e}")
