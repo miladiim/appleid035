@@ -48,12 +48,13 @@ async def message_handler(update: Update, context: CallbackContext):
     elif "2018" in text:
         user_data["product"] = "2018"
         await update.message.reply_text(
-            f"🔻 لطفاً مبلغ {PRODUCTS['2018']['price']} تومان رو به شماره کارت زیر واریز کن:
+    f"""🔻 لطفاً مبلغ {PRODUCTS['2018']['price']} تومان رو به شماره کارت زیر واریز کن:
 
 {CARD_NUMBER}
 
-سپس رسید پرداخت رو همینجا ارسال کن."
-        )
+سپس رسید پرداخت رو همینجا ارسال کن."""
+)
+
     elif "2025" in text:
         user_data["product"] = "2025"
         await update.message.reply_text(
