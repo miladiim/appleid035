@@ -1,6 +1,6 @@
 import logging
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # توکن و مشخصات
 TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
@@ -19,25 +19,20 @@ PRODUCTS = {
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    try:
-        member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
-    except Exception:
-        # اگر دسترسی نداشت یا خطا بود فرض کن عضو نیست
-        member = None
-
-    if not member or member.status in ["left", "kicked"]:
+    member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
+    if member.status in ["left", "kicked"]:
         btn = InlineKeyboardMarkup([[InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]])
         await update.message.reply_text(START_MSG, reply_markup=btn)
         return
 
     await update.message.reply_text(
         "📱 لطفاً شماره موبایل خود را به صورت دستی وارد کرده و روی دکمه زیر بزنید:",
-        reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True, one_time_keyboard=True)
+        reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True)
     )
 
-async def message_handler(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
 
@@ -48,7 +43,7 @@ async def message_handler(update: Update, context: CallbackContext.DEFAULT_TYPE)
                 ["📦 اپل آیدی 2018 - 250 تومان"],
                 ["📦 اپل آیدی 2025 - 200 تومان"],
                 ["📝 اپل آیدی با اطلاعات شخصی - 350 تومان"]
-            ], resize_keyboard=True, one_time_keyboard=True)
+            ], resize_keyboard=True)
         )
     elif "2018" in text:
         user_data["product"] = "2018"
@@ -73,15 +68,13 @@ async def message_handler(update: Update, context: CallbackContext.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
         await update.message.reply_text("✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید.")
 
-async def support_response(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
     if update.message.reply_to_message:
         try:
-            # فرض می‌کنیم پیام ادمین به صورت reply به پیام ارسالی کاربر است
-            original_msg = update.message.reply_to_message.text
-            # استخراج id کاربر از متن پیام (با فرض ساختار قبلی پیام)
-            target_id = int(original_msg.split("از ")[-1].split(":")[0])
+            # استخراج آیدی کاربر از پیام ادمین (شما باید متن رو دقیق تنظیم کنید که کار کند)
+            target_id = int(update.message.reply_to_message.text.split("از ")[-1].split(":")[0])
             await context.bot.send_message(chat_id=target_id, text=update.message.text)
             await update.message.reply_text("✅ پاسخ ارسال شد.")
         except Exception as e:
