@@ -2,34 +2,28 @@ import logging
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
 
-# توکن، آیدی‌ها و مشخصات ثابت
+# توکن و مشخصات
 TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
 
-# پیام خوش‌آمدگویی و شماره کارت
 START_MSG = "👋 خوش اومدی! برای ادامه، اول باید عضو کانال پشتیبانی بشی:"
 CARD_NUMBER = "6219 8619 0952 136\nبه نام: میلاد"
 
-# اطلاعات محصولات
 PRODUCTS = {
     "2018": {"price": "250,000", "title": "اپل آیدی ساخت 2018"},
     "2025": {"price": "200,000", "title": "اپل آیدی ساخت 2025"},
     "custom": {"price": "350,000", "title": "اپل آیدی با اطلاعات شخصی"}
 }
 
-# لاگ‌گیری
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# دستور /start
 async def start(update: Update, context: CallbackContext):
     user = update.effective_user
     member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
     if member.status in ["left", "kicked"]:
-        btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]
-        ])
+        btn = InlineKeyboardMarkup([[InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]])
         await update.message.reply_text(START_MSG, reply_markup=btn)
         return
 
@@ -38,7 +32,6 @@ async def start(update: Update, context: CallbackContext):
         reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True)
     )
 
-# مدیریت پیام‌ها
 async def message_handler(update: Update, context: CallbackContext):
     text = update.message.text
     user_data = context.user_data
@@ -71,12 +64,10 @@ async def message_handler(update: Update, context: CallbackContext):
             f"{CARD_NUMBER}\n\nسپس رسید پرداخت به همراه اسم و فامیل صاحب اپل آیدی رو همینجا بفرست."
         )
     else:
-        # ارسال پیام به ادمین
         msg = f"🧾 پیام جدید از {update.effective_user.full_name}:\n\n{text}"
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
         await update.message.reply_text("✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید.")
 
-# پاسخ ادمین به کاربر
 async def support_response(update: Update, context: CallbackContext):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -85,10 +76,9 @@ async def support_response(update: Update, context: CallbackContext):
             target_id = int(update.message.reply_to_message.text.split("از ")[-1].split(":")[0])
             await context.bot.send_message(chat_id=target_id, text=update.message.text)
             await update.message.reply_text("✅ پاسخ ارسال شد.")
-        except:
-            await update.message.reply_text("❌ خطا در ارسال پاسخ.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا در ارسال پاسخ: {e}")
 
-# اجرای ربات
 def main():
     app = Application.builder().token(TOKEN).build()
 
