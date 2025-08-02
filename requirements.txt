@@ -1,5 +1,2 @@
-yes | pip uninstall python-telegram-bot
-pip install python-telegram-bot==20.7 --force-reinstall
-pip install Flask
-pip install python-telegram-bot==20.7 --force-reinstall
-pip install python-telegram-bot==20.7
+pip uninstall -y python-telegram-bot
+pip install --force-reinstall python-telegram-bot==20.7 Flask
