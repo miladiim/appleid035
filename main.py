@@ -3,7 +3,7 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, filters, MessageHandler
 
-TOKEN = os.getenv("8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs")
+TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()
 
 app = Flask(__name__)
