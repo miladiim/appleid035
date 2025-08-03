@@ -8,14 +8,9 @@ from telegram.ext import (
     ContextTypes
 )
 import os
-import sys
 
-# مشخصات
+# توکن و مشخصات
 TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
-if not TOKEN:
-    print("ERROR: توکن ربات در متغیر محیطی BOT_TOKEN پیدا نشد!")
-    sys.exit(1)
-
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
 
@@ -34,7 +29,6 @@ logger = logging.getLogger(__name__)
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    logger.info(f"User {user.id} started the bot")
     member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
     if member.status in ["left", "kicked"]:
         btn = InlineKeyboardMarkup([
@@ -91,6 +85,7 @@ async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if update.message.reply_to_message:
         try:
+            # استخراج آیدی کاربر از متن پیام قبلی
             target_id = int(update.message.reply_to_message.text.split("(")[-1].split(")")[0])
             await context.bot.send_message(chat_id=target_id, text=update.message.text)
             await update.message.reply_text("✅ پاسخ ارسال شد.")
