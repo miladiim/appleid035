@@ -57,19 +57,13 @@ def send_welcome(message):
         markup.add(btn)
         bot.send_message(chat_id, "سلام 👋 لطفاً شماره موبایلت رو با دکمه زیر ارسال کن:", reply_markup=markup)
 
-@bot.message_handler(content_types=['photo'])
-def handle_receipt(message):
+@bot.message_handler(content_types=['contact'])
+def handle_contact(message):
     user_id = message.from_user.id
-    if user_id not in users:
-        return
-
-    caption = f"🧾 رسید پرداخت از کاربر {user_id}"
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("✅ تأیید پرداخت", callback_data=f"confirm_{user_id}"))
-    markup.add(types.InlineKeyboardButton("📩 پاسخ به کاربر", callback_data=f"reply_{user_id}"))
-
-    bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=markup)
-    bot.send_message(user_id, "✅ رسید شما با موفقیت برای بررسی ارسال شد. منتظر تأیید باشید.")
+    phone = message.contact.phone_number
+    users[user_id] = {"phone": phone, "active": False, "timestamp": int(time.time())}
+    bot.send_message(ADMIN_ID, f"📥 کاربر جدید ثبت شد\nآیدی: {user_id}\nشماره: {phone}")
+    send_main_menu(message.chat.id)
 
 @bot.message_handler(func=lambda m: m.text == '📱 ارسال شماره موبایل')
 def ask_phone_again(message):
@@ -79,38 +73,20 @@ def ask_phone_again(message):
     bot.send_message(message.chat.id, "لطفاً شماره موبایلت رو ارسال کن:", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text == '🛒 خرید اپل‌آیدی')
-def buy_menu(message):
-    user_id = message.from_user.id
-    apple_ids = load_apple_ids()
+def show_appleid_menu(message):
+    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        telebot.types.InlineKeyboardButton("🍎 اپل‌آیدی ساخت 2018 آمریکا (250,000 تومان)", callback_data='buy_2018'),
+        telebot.types.InlineKeyboardButton("🍏 اپل‌آیدی ساخت 2025 آمریکا (200,000 تومان)", callback_data='buy_2025'),
+        telebot.types.InlineKeyboardButton("🔐 اپل‌آیدی با اطلاعات شخصی (350,000 تومان)", callback_data='buy_personal')
+    )
+    bot.send_message(message.chat.id, "لطفاً نوع اپل‌آیدی مورد نظر خود را انتخاب کنید:", reply_markup=markup)
 
-    types = {
-        "2018": "🇺🇸 اپل‌آیدی آمریکا 2018",
-        "2025": "🇺🇸 اپل‌آیدی آمریکا 2025",
-        "personal": "🇮🇷 اپل‌آیدی با اطلاعات شما (داخل ایران)"
-    }
-
-    markup = types.InlineKeyboardMarkup()
-    for t, title in types.items():
-        stock = sum(1 for a in apple_ids if a["type"] == t and not a.get("sold", False))
-        if stock > 0:  # فقط اگه موجودی داشت، نمایش بده
-            markup.add(types.InlineKeyboardButton(f"{title} - {stock} عدد", callback_data=f"type_{t}"))
-
-    if markup.keyboard:
-        bot.send_message(user_id, "✅ لطفاً یکی از پلن‌های زیر را انتخاب کنید:", reply_markup=markup)
-    else:
-        bot.send_message(user_id, "❌ در حال حاضر هیچ اپل‌آیدی موجود نیست.")
-@bot.callback_query_handler(func=lambda c: c.data.startswith("reply_"))
-def reply_to_user_start(call):
-    user_id = int(call.data.split("_")[1])
-    msg = bot.send_message(ADMIN_ID, f"💬 لطفاً پیام خود را برای کاربر {user_id} بنویسید:")
-    bot.register_next_step_handler(msg, send_admin_reply, user_id)
-
-def send_admin_reply(message, user_id):
-    try:
-        bot.send_message(user_id, f"📩 پاسخ پشتیبانی:\n{message.text}")
-        bot.send_message(ADMIN_ID, "✅ پیام شما برای کاربر ارسال شد.")
-    except:
-        bot.send_message(ADMIN_ID, "❌ ارسال پیام به کاربر ناموفق بود.")
+@bot.callback_query_handler(func=lambda call: call.data.startswith('buy_'))
+def handle_buy(call):
+    user_id = call.from_user.id
+    if user_id not in users or "phone" not in users[user_id]:
+        bot.answer_callback_query(call.id, "لطفاً ابتدا شماره موبایل خود را ارسال کنید.")
         return
     apple_ids = load_apple_ids()
     type_map = {
