@@ -3,8 +3,8 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, filters, MessageHandler
 
-TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # آدرس https://yourproject.onrender.com
+TOKEN = os.getenv("8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs")
+WEBHOOK_URL = os.getenv("https://appleid035.onrender.com")  # آدرس https://yourproject.onrender.com
 
 app = Flask(__name__)
 application = Application.builder().token(TOKEN).build()
