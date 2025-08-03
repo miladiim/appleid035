@@ -2,15 +2,16 @@ import os
 import logging
 from flask import Flask, request
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-TOKEN = os.getenv("BOT_TOKEN", "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs")
+# اطلاعات
+TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
-START_MSG = "👋 خوش اومدی! برای ادامه اول باید عضو کانال پشتیبانی بشی:"
-CARD_NUMBER = "6219 8619 0952 136\nبه نام: میلاد"
+WEBHOOK_URL = "https://appleid035.onrender.com"  # آدرس واقعی اپت در Render
+
+app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
 PRODUCTS = {
     "2018": {"price": "250,000", "title": "اپل آیدی ساخت 2018"},
@@ -18,18 +19,20 @@ PRODUCTS = {
     "custom": {"price": "350,000", "title": "اپل آیدی با اطلاعات شخصی"}
 }
 
-app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
+CARD_NUMBER = "6219 8619 0952 136\nبه نام: میلاد"
 
-bot_app = ApplicationBuilder().token(TOKEN).build()
+application = Application.builder().token(TOKEN).build()
 
-# فرمان start
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
+
     if member.status in ["left", "kicked"]:
-        btn = InlineKeyboardMarkup([[InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]])
-        await update.message.reply_text(START_MSG, reply_markup=btn)
+        btn = InlineKeyboardMarkup([
+            [InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]
+        ])
+        await update.message.reply_text("👋 خوش اومدی! برای ادامه اول باید عضو کانال بشی:", reply_markup=btn)
         return
 
     await update.message.reply_text(
@@ -38,7 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # مدیریت پیام‌ها
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
 
@@ -74,24 +77,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
         await update.message.reply_text("✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید.")
 
-# هندلرها
-bot_app.add_handler(CommandHandler("start", start))
-bot_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+# ثبت هندلرها
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-# وبهوک برای Render
+# تنظیم Webhook در Flask
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    bot_app.update_queue.put_nowait(update)
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put_nowait(update)
     return "ok"
 
-@app.route("/", methods=["GET"])
-def home():
-    return "ربات فعال است."
+@app.route("/")
+async def set_webhook():
+    await application.bot.set_webhook(f"{WEBHOOK_URL}/{TOKEN}")
+    return "Webhook set!"
 
 if __name__ == "__main__":
-    bot_app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080)),
-        webhook_url=f"https://appleid035.onrender.com/{TOKEN}"
-    )
+    application.run_polling()
