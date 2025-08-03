@@ -1,23 +1,23 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from flask import Flask, request
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# مشخصات ربات و کانال و ادمین خودت
-TOKEN = os.getenv("BOT_TOKEN", "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs")
-CHANNEL_ID = -1002276225309  # آیدی کانال پشتیبانی واقعی
-ADMIN_ID = 368422936          # آیدی عددی ادمین (خودت)
+TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
+CHANNEL_ID = -1002276225309
+ADMIN_ID = 368422936
+
+app = Flask(__name__)
+
+# ساخت اپلیکیشن تلگرام
+application = ApplicationBuilder().token(TOKEN).build()
 
 START_MSG = "👋 خوش اومدی! برای ادامه اول باید عضو کانال پشتیبانی بشی:"
 CARD_NUMBER = "6219 8619 0952 136\nبه نام: میلاد"
@@ -28,7 +28,8 @@ PRODUCTS = {
     "custom": {"price": "350,000", "title": "اپل آیدی با اطلاعات شخصی"}
 }
 
-# /start
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     try:
@@ -49,8 +50,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True),
     )
 
-
-# مدیریت پیام‌ها
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
@@ -91,22 +90,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
         await update.message.reply_text("✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید.")
 
-
-# پاسخ ادمین به پیام‌ها (ریپلای)
 async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
     if update.message.reply_to_message:
         original_msg = update.message.reply_to_message
-        # فرض: پیام ادمین ریپلای شده روی پیام کاربر است
-        # پیام ادمین را به کاربر ارسال کن
         try:
             user_id = None
-            # استخراج آیدی کاربر از متن پیام اصلی (مثال: در پیام ادمین)
-            # چون ما پیام کاربر را به ادمین ارسال می‌کنیم، ادمین باید پاسخ دهد در همان ریپلای
-
-            # ساده ترین راه: پیام ریپلای شده را به کاربر ارسال کنیم
             if original_msg.from_user:
                 user_id = original_msg.from_user.id
 
@@ -122,23 +113,25 @@ async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error sending support response: {e}")
             await update.message.reply_text("⚠️ خطا در ارسال پاسخ به کاربر.")
 
-def main():
-    PORT = int(os.environ.get("PORT", "8443"))
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+application.add_handler(MessageHandler(filters.REPLY & filters.TEXT, support_response))
 
-    app = Application.builder().token(TOKEN).build()
+@app.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.process_update(update)
+    return "OK"
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, support_response))
+@app.route('/')
+def index():
+    return "Bot is running."
 
-    # اجرای وبهوک روی Render
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=f"https://appleid035.onrender.com/{TOKEN}",
-    )
+if __name__ == '__main__':
+    PORT = int(os.environ.get('PORT', '8443'))
+    # تنظیم وبهوک روی Render: این خط باید یکبار اجرا بشه و بعد میتونی کامنتش کنی یا جدا اجراش کنی
+    # از کامنت در بیار و اجرا کن، سپس دوباره کامنت کن:
+    # import asyncio
+    # asyncio.run(application.bot.set_webhook(f"https://appleid035.onrender.com/{TOKEN}"))
 
-
-if __name__ == "__main__":
-    main()
+    app.run(host='0.0.0.0', port=PORT)
