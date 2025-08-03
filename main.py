@@ -9,7 +9,7 @@ from telegram.ext import (
 )
 import os
 
-# مشخصات ربات و کانال و ادمین
+# مشخصات
 TOKEN = os.getenv("BOT_TOKEN", "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs")
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
@@ -42,7 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True)
     )
 
-# مدیریت پیام‌ها
+# پیام‌ها
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
@@ -75,14 +75,31 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{CARD_NUMBER}\n\nسپس رسید پرداخت به همراه اسم و فامیل صاحب اپل آیدی رو همینجا بفرست."
         )
     else:
-        # پیام به ادمین فوروارد شود
         msg = f"🧾 پیام جدید از {update.effective_user.full_name} ({update.effective_user.id}):\n\n{text}"
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
         await update.message.reply_text("✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید.")
 
-# پاسخ ادمین به پیام‌ها (ریپلای)
+# پاسخ ادمین
 async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
     if update.message.reply_to_message:
         try:
+            target_id = int(update.message.reply_to_message.text.split("(")[-1].split(")")[0])
+            await context.bot.send_message(chat_id=target_id, text=update.message.text)
+            await update.message.reply_text("✅ پاسخ ارسال شد.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا در ارسال پاسخ: {e}")
+
+# اجرای ربات
+def main():
+    app = Application.builder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler))
+    app.add_handler(MessageHandler(filters.TEXT & filters.User(ADMIN_ID), support_response))
+
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
