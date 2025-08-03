@@ -1,138 +1,257 @@
-import logging
 from flask import Flask, request
-from telegram import (
-    Update, KeyboardButton, ReplyKeyboardMarkup,
-    ReplyKeyboardRemove, InputMediaPhoto
-)
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
-    ContextTypes, filters
-)
-from pymongo import MongoClient
+import telebot
+import time
+import threading
 import json
+import os
 
-# پیکربندی
-TOKEN = "494613530:AAHQFmKNzgoehLf9i35mIPn1Z8WhtkrBZa4"
+# ==== اطلاعات شخصی ====
+API_TOKEN = '8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs'
+CHANNEL_ID = -1002891641618
+CHANNEL_LINK = 'https://t.me/+Bnko8vYkvcRkYjdk'
 ADMIN_ID = 368422936
-CARD_NUMBER = "6037991234567890"
+ZARINPAL_URL = 'https://zarinp.al/634382'
 
-# اتصال به دیتابیس
-client = MongoClient("mongodb+srv://vipadmin:milad137555@cluster0.g6mqucj.mongodb.net")
-db = client["vip_bot"]
-users_col = db["users"]
-orders_col = db["orders"]
-
-# راه‌اندازی فلَسک
+bot = telebot.TeleBot(API_TOKEN)
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
 
-# شروع ربات
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    button = KeyboardButton("ارسال شماره 📱", request_contact=True)
-    markup = ReplyKeyboardMarkup([[button]], resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("لطفاً شماره موبایل خود را ارسال کنید:", reply_markup=markup)
+# مسیر فایل اپل‌آیدی‌ها
+APPLEID_FILE = 'apple_ids.json'
 
-# ذخیره شماره موبایل و نمایش گزینه‌ها
-async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    contact = update.message.contact
-    user_id = update.effective_user.id
-    phone = contact.phone_number
+# بارگذاری اپل‌آیدی‌ها از فایل
+def load_apple_ids():
+    if not os.path.exists(APPLEID_FILE):
+        with open(APPLEID_FILE, 'w', encoding='utf-8') as f:
+            json.dump([], f)
+    with open(APPLEID_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
-    users_col.update_one(
-        {"user_id": user_id},
-        {"$set": {"phone": phone}},
-        upsert=True
-    )
+# ذخیره اپل‌آیدی‌ها در فایل
+def save_apple_ids(data):
+    with open(APPLEID_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-    buttons = [
-        ["🟣 اپل‌آیدی آماده 2025 - 200 هزار تومان"],
-        ["🔵 اپل‌آیدی آماده 2018 - 300 هزار تومان"],
-        ["🟢 اپل‌آیدی با اطلاعات شخصی - 350 هزار تومان"]
-    ]
-    markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
-    await update.message.reply_text("یک گزینه را برای خرید انتخاب کنید:", reply_markup=markup)
+# ==== کاربران و شماره موبایل‌ها را داخل دیکشنری ساده ذخیره می‌کنیم (در حافظه) ====
+users = {}
 
-# مدیریت انتخاب محصول
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = update.message.text
-
-    if "آماده 2025" in text:
-        product = "اپل‌آیدی آماده 2025"
-        price = 200000
-    elif "آماده 2018" in text:
-        product = "اپل‌آیدی آماده 2018"
-        price = 300000
-    elif "اطلاعات شخصی" in text:
-        product = "اپل‌آیدی با اطلاعات شخصی"
-        price = 350000
-        await update.message.reply_text("🔶 لطفاً *نام و نام خانوادگی* خود را هم همراه با رسید ارسال کنید.", parse_mode="Markdown")
-    else:
-        # رسید پرداخت یا پیام دیگر
-        if update.message.photo:
-            caption = update.message.caption or ""
-            orders_col.insert_one({
-                "user_id": user_id,
-                "photo": True,
-                "caption": caption
-            })
-            await context.bot.send_photo(
-                chat_id=ADMIN_ID,
-                photo=update.message.photo[-1].file_id,
-                caption=f"✅ رسید جدید از کاربر {user_id}\n{caption}"
-            )
-            await update.message.reply_text("✅ رسید شما دریافت شد. منتظر تأیید ادمین بمانید.")
-        else:
-            await context.bot.send_message(chat_id=ADMIN_ID, text=f"📨 پیام جدید از {user_id}:\n{text}")
-            await update.message.reply_text("📩 پیام شما به ادمین ارسال شد.")
-        return
-
-    # ذخیره سفارش در دیتابیس
-    users_col.update_one({"user_id": user_id}, {"$set": {
-        "selected_product": product,
-        "price": price
-    }})
-
-    await update.message.reply_text(
-        f"✅ محصول انتخابی: {product}\n💳 لطفاً مبلغ {price:,} تومان را به شماره کارت زیر واریز کرده و رسید را ارسال کنید:\n\n`{CARD_NUMBER}`",
-        parse_mode="Markdown"
-    )
-
-# پاسخ ادمین به کاربر
-async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    if update.message.reply_to_message:
-        original_text = update.message.reply_to_message.text
-        lines = original_text.split()
-        for line in lines:
-            if line.isdigit():
-                target_user = int(line)
-                await context.bot.send_message(chat_id=target_user, text=update.message.text)
-                await update.message.reply_text("✅ پیام برای کاربر ارسال شد.")
-                return
-    await update.message.reply_text("⛔️ این پاسخ، ریپلای روی پیام کاربر نیست.")
-
-# وب‌هوک تلگرام
-@app.route("/", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), Application.builder().token(TOKEN).build().bot)
-    Application.builder().token(TOKEN).build().process_update(update)
-    return "ok"
-
-@app.route("/")
+@app.route('/', methods=['GET'])
 def index():
-    return "ربات فعال است."
+    return 'Bot is running'
 
-# اجرای ربات
-def main():
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.CONTACT, handle_contact))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=ADMIN_ID), admin_reply))
-    application.run_polling()
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = telebot.types.Update.de_json(request.stream.read().decode("utf-8"))
+    bot.process_new_updates([update])
+    return 'ok'
 
-if __name__ == "__main__":
-    main()
+# ارسال منوی اصلی فارسی
+def send_main_menu(chat_id):
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(telebot.types.KeyboardButton('💳 پرداخت'), telebot.types.KeyboardButton('🎫 تیکت به پشتیبانی'))
+    bot.send_message(chat_id, "📋 منوی اصلی:", reply_markup=markup)
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    if user_id in users and "phone" in users[user_id]:
+        send_main_menu(chat_id)
+    else:
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        btn = telebot.types.KeyboardButton('📱 ارسال شماره موبایل', request_contact=True)
+        markup.add(btn)
+        bot.send_message(chat_id, "سلام 👋 لطفاً شماره موبایلت رو با دکمه زیر ارسال کن:", reply_markup=markup)
+
+@bot.message_handler(content_types=['contact'])
+def handle_contact(message):
+    user_id = message.from_user.id
+    phone = message.contact.phone_number
+
+    users[user_id] = {"phone": phone, "active": False, "timestamp": int(time.time())}
+
+    bot.send_message(ADMIN_ID, f"""📥 کاربر جدید ثبت شد
+آیدی: {user_id}
+شماره: {phone}""")
+
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(telebot.types.KeyboardButton('💳 پرداخت'), telebot.types.KeyboardButton('🎫 تیکت به پشتیبانی'))
+    bot.send_message(message.chat.id, f"✅ شماره شما ثبت شد.\n\nتا دو دقیقه دیگر این پیام حذف می‌شود.\n\nبرای پرداخت، روی لینک زیر کلیک کنید:\n{ZARINPAL_URL}", reply_markup=markup)
+
+    # حذف پیام پس از 120 ثانیه
+    def delete_message_later(chat_id, message_id):
+        time.sleep(120)
+        try:
+            bot.delete_message(chat_id, message_id)
+        except:
+            pass
+
+    threading.Thread(target=delete_message_later, args=(message.chat.id, message.message_id)).start()
+
+@bot.message_handler(func=lambda m: m.text == '💳 پرداخت')
+def payment_link(message):
+    bot.send_message(message.chat.id, f"💳 برای پرداخت، روی لینک زیر کلیک کنید:\n{ZARINPAL_URL}")
+
+@bot.message_handler(commands=['add_appleid'])
+def add_appleid(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.send_message(message.chat.id, "❌ دسترسی ندارید.")
+        return
+    try:
+        # فرمت: /add_appleid email password q1 q2 q3
+        parts = message.text.split(' ', 6)
+        if len(parts) < 6:
+            bot.send_message(message.chat.id, "❗️ فرمت اشتباه است.\nفرمت صحیح:\n/add_appleid ایمیل رمز سوال۱ سوال۲ سوال۳")
+            return
+        email = parts[1]
+        password = parts[2]
+        q1 = parts[3]
+        q2 = parts[4]
+        q3 = parts[5]
+
+        apple_ids = load_apple_ids()
+        apple_ids.append({
+            "email": email,
+            "password": password,
+            "q1": q1,
+            "q2": q2,
+            "q3": q3,
+            "sold": False
+        })
+        save_apple_ids(apple_ids)
+        bot.send_message(message.chat.id, "✅ اپل‌آیدی با موفقیت اضافه شد.")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❗️ خطا در اضافه کردن اپل‌آیدی: {e}")
+
+@bot.message_handler(commands=['stock'])
+def stock(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.send_message(message.chat.id, "❌ دسترسی ندارید.")
+        return
+    apple_ids = load_apple_ids()
+    available = len([a for a in apple_ids if not a.get("sold", False)])
+    bot.send_message(message.chat.id, f"📦 موجودی اپل‌آیدی‌ها: {available}")
+
+@bot.message_handler(func=lambda m: m.text == '🎫 تیکت به پشتیبانی')
+def ask_support(message):
+    bot.send_message(message.chat.id, "📝 لطفاً پیام خود را بنویسید و ارسال کنید.")
+    bot.register_next_step_handler(message, forward_to_admin)
+
+def forward_to_admin(message):
+    bot.send_message(ADMIN_ID, f"📩 پیام از {message.from_user.id}:\n{message.text}")
+    bot.send_message(message.chat.id, "✅ پیام شما ارسال شد. منتظر پاسخ باشید.")
+
+@bot.message_handler(commands=['admin'])
+def admin_panel(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    markup = telebot.types.InlineKeyboardMarkup()
+    markup.add(telebot.types.InlineKeyboardButton("📋 لیست کاربران", callback_data='list_users'))
+    markup.add(telebot.types.InlineKeyboardButton("🟢 فعال‌سازی دستی", callback_data='confirm_user'))
+    markup.add(telebot.types.InlineKeyboardButton("❌ حذف اشتراک", callback_data='remove_user'))
+    markup.add(telebot.types.InlineKeyboardButton("📢 ارسال پیام همگانی", callback_data='broadcast'))
+    markup.add(telebot.types.InlineKeyboardButton("📦 موجودی اپل‌آیدی", callback_data='stock'))
+    bot.send_message(message.chat.id, "🛠 پنل مدیریت:", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    if call.data == "list_users":
+        text = "📋 لیست کاربران:\n"
+        for user_id, info in users.items():
+            phone = info.get("phone", "-")
+            active = "✅" if info.get("active", False) else "❌"
+            text += f"{user_id} | {phone} | {active}\n"
+        bot.send_message(ADMIN_ID, text or "❗️کاربری یافت نشد.")
+
+    elif call.data == "confirm_user":
+        bot.send_message(ADMIN_ID, "لطفاً آیدی عددی کاربر را بفرستید تا فعال شود.")
+        bot.register_next_step_handler(call.message, confirm_user_step)
+
+    elif call.data == "remove_user":
+        bot.send_message(ADMIN_ID, "آیدی عددی کاربر برای حذف را بفرستید:")
+        bot.register_next_step_handler(call.message, remove_user_step)
+
+    elif call.data == "broadcast":
+        bot.send_message(ADMIN_ID, "پیامی که باید به همه ارسال شود را بفرستید:")
+        bot.register_next_step_handler(call.message, broadcast_step)
+
+    elif call.data == "stock":
+        apple_ids = load_apple_ids()
+        available = len([a for a in apple_ids if not a.get("sold", False)])
+        bot.send_message(ADMIN_ID, f"📦 موجودی اپل‌آیدی‌ها: {available}")
+
+def confirm_user_step(message):
+    try:
+        user_id = int(message.text)
+        if user_id in users:
+            users[user_id]["active"] = True
+            users[user_id]["timestamp"] = int(time.time())
+            bot.send_message(user_id, f"✅ اشتراک شما فعال شد.\n\n📥 [عضویت در کانال VIP]({CHANNEL_LINK})", parse_mode='Markdown')
+            bot.send_message(ADMIN_ID, "✅ کاربر فعال شد.")
+        else:
+            bot.send_message(ADMIN_ID, "❗️ کاربر پیدا نشد.")
+    except:
+        bot.send_message(ADMIN_ID, "❗️ مقدار اشتباه است.")
+
+def remove_user_step(message):
+    try:
+        user_id = int(message.text)
+        if user_id in users:
+            users[user_id]["active"] = False
+            bot.send_message(user_id, "❌ اشتراک شما لغو شد.")
+            bot.send_message(ADMIN_ID, "✅ اشتراک لغو شد.")
+        else:
+            bot.send_message(ADMIN_ID, "❗️ کاربر پیدا نشد.")
+    except:
+        bot.send_message(ADMIN_ID, "❗️ مقدار اشتباه است.")
+
+def broadcast_step(message):
+    text = message.text
+    count = 0
+    for user_id, info in users.items():
+        try:
+            bot.send_message(user_id, text)
+            count += 1
+        except:
+            pass
+    bot.send_message(ADMIN_ID, f"پیام به {count} نفر ارسال شد.")
+
+# شبیه‌سازی تایید پرداخت موفق (این قسمت را طبق سیستم پرداخت خودت کامل کن)
+@bot.message_handler(commands=['paid'])
+def handle_paid(message):
+    user_id = message.from_user.id
+    apple_ids = load_apple_ids()
+    # پیدا کردن اولین اپل‌آیدی موجود
+    appleid = None
+    for a in apple_ids:
+        if not a.get("sold", False):
+            appleid = a
+            break
+    if appleid is None:
+        bot.send_message(user_id, "❗️ متأسفانه اپل‌آیدی موجود نیست.")
+        return
+
+    # علامت گذاری اپل‌آیدی به عنوان فروخته شده
+    appleid["sold"] = True
+    save_apple_ids(apple_ids)
+
+    # ارسال اپل‌آیدی به کاربر
+    text = f"""🎉 پرداخت شما تایید شد!
+
+ایمیل: {appleid['email']}
+رمز عبور: {appleid['password']}
+سوال امنیتی ۱: {appleid['q1']}
+سوال امنیتی ۲: {appleid['q2']}
+سوال امنیتی ۳: {appleid['q3']}
+
+✅ از خرید شما سپاسگزاریم!"""
+    bot.send_message(user_id, text)
+
+    # فعال‌سازی اشتراک (مثلا عضویت در کانال VIP)
+    users[user_id] = users.get(user_id, {})
+    users[user_id]["active"] = True
+    bot.send_message(user_id, f"📥 [عضویت در کانال VIP]({CHANNEL_LINK})", parse_mode='Markdown')
+
+if __name__ == '__main__':
+    bot.remove_webhook()
+    bot.set_webhook(url='https://YOUR-RENDER-URL/webhook')  # آدرس وب‌هوک خودت را بگذار
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
