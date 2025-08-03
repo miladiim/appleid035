@@ -1,4 +1,5 @@
 import logging
+import os
 from flask import Flask, request
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, Bot
 from telegram.ext import (
@@ -8,9 +9,8 @@ from telegram.ext import (
     filters,
     ContextTypes,
 )
-import os
 
-TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"  # اینجا توکن رباتتو بزار
+TOKEN = "توکن-ربات-تو-اینجا-باشه"
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
 
@@ -93,12 +93,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler))
 
-from flask import Flask, request
-from telegram import Update
-from telegram.ext import Dispatcher
-
-app = Flask(__name__)
-
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
@@ -114,7 +108,7 @@ if __name__ == "__main__":
     import uvicorn
 
     async def set_webhook():
-        url = f"https://yourapp.onrender.com/{TOKEN}"  # آدرس واقعی خودت
+        url = f"https://yourapp.onrender.com/{TOKEN}"  # آدرس وبهوک خودت رو وارد کن
         await bot.set_webhook(url)
 
     asyncio.run(set_webhook())
