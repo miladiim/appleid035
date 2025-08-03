@@ -11,8 +11,8 @@ ADMIN_ID = 368422936
 
 bot = telebot.TeleBot(API_TOKEN)
 app = Flask(__name__)
-
 APPLEID_FILE = 'apple_ids.json'
+users = {}
 
 def load_apple_ids():
     if not os.path.exists(APPLEID_FILE):
@@ -24,8 +24,6 @@ def load_apple_ids():
 def save_apple_ids(data):
     with open(APPLEID_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
-users = {}
 
 @app.route('/', methods=['GET'])
 def index():
@@ -40,7 +38,6 @@ def webhook():
 def send_main_menu(chat_id):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(
-        telebot.types.KeyboardButton('📱 ارسال شماره موبایل'),
         telebot.types.KeyboardButton('🛒 خرید اپل‌آیدی'),
         telebot.types.KeyboardButton('🎫 تیکت به پشتیبانی')
     )
@@ -66,22 +63,15 @@ def handle_contact(message):
     bot.send_message(ADMIN_ID, f"📥 کاربر جدید ثبت شد\nآیدی: {user_id}\nشماره: {phone}")
     send_main_menu(message.chat.id)
 
-@bot.message_handler(func=lambda m: m.text == '📱 ارسال شماره موبایل')
-def ask_phone_again(message):
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    btn = telebot.types.KeyboardButton('📱 ارسال شماره موبایل', request_contact=True)
-    markup.add(btn)
-    bot.send_message(message.chat.id, "لطفاً شماره موبایلت رو ارسال کن:", reply_markup=markup)
-
 @bot.message_handler(func=lambda m: m.text == '🛒 خرید اپل‌آیدی')
 def show_appleid_menu(message):
-    markup = telebot.types.InlineKeyboardMarkup()
+    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         telebot.types.InlineKeyboardButton("🍎 اپل‌آیدی ساخت 2018 آمریکا (250,000 تومان)", callback_data='buy_2018'),
         telebot.types.InlineKeyboardButton("🍏 اپل‌آیدی ساخت 2025 آمریکا (200,000 تومان)", callback_data='buy_2025'),
-        telebot.types.InlineKeyboardButton("📧 هات‌میل ساخت 2025 (ارزان) (180,000 تومان)", callback_data='buy_hotmail')
+        telebot.types.InlineKeyboardButton("📧 هات‌میل ساخت 2025 (180,000 تومان)", callback_data='buy_hotmail')
     )
-    bot.send_message(message.chat.id, "لطفاً نوع اپل‌آیدی مورد نظر خود را انتخاب کنید:", reply_markup=markup)
+    bot.send_message(message.chat.id, "📦 لطفاً نوع اپل‌آیدی را انتخاب کن:", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('buy_'))
 def handle_buy(call):
@@ -90,23 +80,18 @@ def handle_buy(call):
         bot.answer_callback_query(call.id, "لطفاً ابتدا شماره موبایل خود را ارسال کنید.")
         return
     apple_ids = load_apple_ids()
-    # فیلتر اپل‌آیدی‌ها بر اساس نوع
     type_map = {
         'buy_2018': '2018',
         'buy_2025': '2025',
         'buy_hotmail': 'hotmail'
     }
     t = type_map.get(call.data)
-    selected_appleid = None
-    for a in apple_ids:
-        if not a.get("sold", False) and a.get("type") == t:
-            selected_appleid = a
-            break
-    if selected_appleid is None:
-        bot.answer_callback_query(call.id, "❗️ متأسفانه اپل‌آیدی موجود نیست.")
+    selected_appleid = next((a for a in apple_ids if not a.get("sold", False) and a.get("type") == t), None)
+    if not selected_appleid:
+        bot.answer_callback_query(call.id, "❗️ متأسفانه موجودی نداریم.")
         return
     users[user_id]["selected_appleid"] = selected_appleid
-    bot.send_message(user_id, f"✅ اپل‌آیدی انتخاب شد. لطفاً شماره کارت بانکی خود را ارسال کنید تا فرایند خرید تکمیل شود.")
+    bot.send_message(user_id, "لطفاً شماره کارت خود را وارد کنید.\nبعد از آن رسید واریز را بفرستید.")
 
 @bot.message_handler(func=lambda m: m.text and m.text.isdigit() and "selected_appleid" in users.get(m.from_user.id, {}))
 def receive_card_number(message):
@@ -114,25 +99,20 @@ def receive_card_number(message):
     card_number = message.text
     appleid = users[user_id].pop("selected_appleid")
     apple_ids = load_apple_ids()
-    # علامت گذاری اپل‌آیدی به عنوان فروخته شده
     for a in apple_ids:
         if a == appleid:
             a["sold"] = True
             break
     save_apple_ids(apple_ids)
-    text = f"""🎉 خرید با موفقیت انجام شد!
-
-ایمیل: {appleid['email']}
-رمز عبور: {appleid['password']}
-سوال امنیتی ۱: {appleid['q1']}
-سوال امنیتی ۲: {appleid['q2']}
-سوال امنیتی ۳: {appleid['q3']}
-
-شماره کارت شما برای پیگیری ثبت شد: {card_number}
-
-✅ از خرید شما سپاسگزاریم!"""
-    bot.send_message(user_id, text)
-    bot.send_message(ADMIN_ID, f"💳 خرید توسط کاربر {user_id} انجام شد.\nشماره کارت: {card_number}")
+    msg = (
+        f"🎉 خرید انجام شد!\n\n"
+        f"ایمیل: {appleid['email']}\nرمز: {appleid['password']}\n"
+        f"سؤال ۱: {appleid['q1']}\nسؤال ۲: {appleid['q2']}\nسؤال ۳: {appleid['q3']}\n\n"
+        f"شماره کارت شما: {card_number}\n\n"
+        "✅ لطفاً رسید واریز خود را ارسال کنید."
+    )
+    bot.send_message(user_id, msg)
+    bot.send_message(ADMIN_ID, f"✅ خرید توسط {user_id}\nشماره کارت: {card_number}")
 
 @bot.message_handler(func=lambda m: m.text == '🎫 تیکت به پشتیبانی')
 def ask_support(message):
@@ -141,7 +121,7 @@ def ask_support(message):
 
 def forward_to_admin(message):
     bot.send_message(ADMIN_ID, f"📩 پیام از {message.from_user.id}:\n{message.text}")
-    bot.send_message(message.chat.id, "✅ پیام شما ارسال شد. منتظر پاسخ باشید.")
+    bot.send_message(message.chat.id, "✅ پیام شما ارسال شد.")
 
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
@@ -150,75 +130,46 @@ def admin_panel(message):
     markup = telebot.types.InlineKeyboardMarkup()
     markup.add(
         telebot.types.InlineKeyboardButton("📋 لیست کاربران", callback_data='list_users'),
-        telebot.types.InlineKeyboardButton("🟢 فعال‌سازی دستی", callback_data='confirm_user'),
-        telebot.types.InlineKeyboardButton("❌ اخراج کاربر", callback_data='remove_user'),
-        telebot.types.InlineKeyboardButton("📢 ارسال پیام همگانی", callback_data='broadcast'),
-        telebot.types.InlineKeyboardButton("📦 موجودی اپل‌آیدی", callback_data='stock')
+        telebot.types.InlineKeyboardButton("➕ افزودن اپل‌آیدی", callback_data='add_appleid'),
+        telebot.types.InlineKeyboardButton("📦 موجودی", callback_data='stock')
     )
     bot.send_message(message.chat.id, "🛠 پنل مدیریت:", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    if call.data == "list_users":
-        text = "📋 لیست کاربران:\n"
-        for user_id, info in users.items():
+@bot.callback_query_handler(func=lambda call: call.data in ['list_users', 'add_appleid', 'stock'])
+def callback_admin(call):
+    if call.data == 'list_users':
+        text = "📋 کاربران:\n"
+        for uid, info in users.items():
             phone = info.get("phone", "-")
-            active = "✅" if info.get("active", False) else "❌"
-            text += f"{user_id} | {phone} | {active}\n"
-        bot.send_message(ADMIN_ID, text or "❗️کاربری یافت نشد.")
+            active = "✅" if info.get("active") else "❌"
+            text += f"{uid} | {phone} | {active}\n"
+        bot.send_message(ADMIN_ID, text or "کاربری یافت نشد.")
 
-    elif call.data == "confirm_user":
-        bot.send_message(ADMIN_ID, "لطفاً آیدی عددی کاربر را بفرستید تا فعال شود.")
-        bot.register_next_step_handler(call.message, confirm_user_step)
+    elif call.data == 'add_appleid':
+        bot.send_message(ADMIN_ID, "لطفاً اطلاعات اپل‌آیدی را با فرمت زیر ارسال کنید:\n\n"
+                                   "type:2018\nemail:mail@domain.com\npassword:1234\nq1:سؤال1\nq2:سؤال2\nq3:سؤال3")
+        bot.register_next_step_handler(call.message, add_appleid_step)
 
-    elif call.data == "remove_user":
-        bot.send_message(ADMIN_ID, "آیدی عددی کاربر برای اخراج را بفرستید:")
-        bot.register_next_step_handler(call.message, remove_user_step)
+    elif call.data == 'stock':
+        data = load_apple_ids()
+        count = len([i for i in data if not i.get("sold")])
+        bot.send_message(ADMIN_ID, f"📦 موجودی اپل‌آیدی: {count} عدد")
 
-    elif call.data == "broadcast":
-        bot.send_message(ADMIN_ID, "پیامی که باید به همه ارسال شود را بفرستید:")
-        bot.register_next_step_handler(call.message, broadcast_step)
-
-    elif call.data == "stock":
-        apple_ids = load_apple_ids()
-        available = len([a for a in apple_ids if not a.get("sold", False)])
-        bot.send_message(ADMIN_ID, f"📦 موجودی اپل‌آیدی‌ها: {available}")
-
-def confirm_user_step(message):
-    try:
-        user_id = int(message.text)
-        if user_id in users:
-            users[user_id]["active"] = True
-            users[user_id]["timestamp"] = int(time.time())
-            bot.send_message(user_id, "✅ حساب شما فعال شد.")
-            bot.send_message(ADMIN_ID, f"✅ کاربر {user_id} فعال شد.")
-        else:
-            bot.send_message(ADMIN_ID, "❌ کاربر یافت نشد.")
-    except:
-        bot.send_message(ADMIN_ID, "❌ ورودی نامعتبر است.")
-
-def remove_user_step(message):
-    try:
-        user_id = int(message.text)
-        if user_id in users:
-            users.pop(user_id)
-            bot.send_message(user_id, "❌ شما از سیستم حذف شدید.")
-            bot.send_message(ADMIN_ID, f"❌ کاربر {user_id} حذف شد.")
-        else:
-            bot.send_message(ADMIN_ID, "❌ کاربر یافت نشد.")
-    except:
-        bot.send_message(ADMIN_ID, "❌ ورودی نامعتبر است.")
-
-def broadcast_step(message):
-    text = message.text
-    count = 0
-    for user_id in users.keys():
-        try:
-            bot.send_message(user_id, text)
-            count += 1
-        except:
-            pass
-    bot.send_message(ADMIN_ID, f"پیام به {count} کاربر ارسال شد.")
+def add_appleid_step(message):
+    lines = message.text.splitlines()
+    entry = {}
+    for line in lines:
+        if ":" in line:
+            key, val = line.split(":", 1)
+            entry[key.strip()] = val.strip()
+    if all(k in entry for k in ["type", "email", "password", "q1", "q2", "q3"]):
+        entry["sold"] = False
+        data = load_apple_ids()
+        data.append(entry)
+        save_apple_ids(data)
+        bot.send_message(ADMIN_ID, "✅ اپل‌آیدی با موفقیت ذخیره شد.")
+    else:
+        bot.send_message(ADMIN_ID, "❌ فرمت اشتباه است. دوباره امتحان کن.")
 
 def run_bot():
     bot.remove_webhook()
