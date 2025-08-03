@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 TOKEN = os.getenv("BOT_TOKEN") or "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
-WEBHOOK_URL = "https://appleid035.onrender.com"  # آدرس نهایی اپت در Render
+WEBHOOK_URL = "https://appleid035.onrender.com"
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
