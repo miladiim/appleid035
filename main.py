@@ -1,24 +1,19 @@
 import logging
 import os
-from flask import Flask, request
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, Bot
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
     MessageHandler,
     filters,
     ContextTypes,
 )
 
-TOKEN = "توکن-ربات-تو-اینجا-باشه"
+# تنظیمات ربات و کانال و ادمین
+TOKEN = os.getenv("BOT_TOKEN", "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs")
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
-
-app = Flask(__name__)
-bot = Bot(token=TOKEN)
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+PORT = int(os.getenv("PORT", "8443"))  # پورت روی Render معمولا این است
 
 START_MSG = "👋 خوش اومدی! برای ادامه اول باید عضو کانال پشتیبانی بشی:"
 CARD_NUMBER = "6219 8619 0952 136\nبه نام: میلاد"
@@ -26,32 +21,25 @@ CARD_NUMBER = "6219 8619 0952 136\nبه نام: میلاد"
 PRODUCTS = {
     "2018": {"price": "250,000", "title": "اپل آیدی ساخت 2018"},
     "2025": {"price": "200,000", "title": "اپل آیدی ساخت 2025"},
-    "custom": {"price": "350,000", "title": "اپل آیدی با اطلاعات شخصی"}
+    "custom": {"price": "350,000", "title": "اپل آیدی با اطلاعات شخصی"},
 }
 
-application = ApplicationBuilder().token(TOKEN).build()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    try:
-        member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
-        if member.status in ["left", "kicked"]:
-            btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]
-            ])
-            await update.message.reply_text(START_MSG, reply_markup=btn)
-            return
-    except Exception as e:
-        logger.error(f"Error checking membership: {e}")
-        btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]
-        ])
+    member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
+    if member.status in ["left", "kicked"]:
+        btn = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]]
+        )
         await update.message.reply_text(START_MSG, reply_markup=btn)
         return
 
     await update.message.reply_text(
         "📱 لطفاً شماره موبایل خود را به صورت دستی وارد کرده و روی دکمه زیر بزنید:",
-        reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True)
+        reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True),
     )
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -61,11 +49,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "ارسال شماره":
         await update.message.reply_text(
             "✅ شماره دریافت شد. حالا یکی از گزینه‌های زیر رو انتخاب کن:",
-            reply_markup=ReplyKeyboardMarkup([
-                ["📦 اپل آیدی 2018 - 250 تومان"],
-                ["📦 اپل آیدی 2025 - 200 تومان"],
-                ["📝 اپل آیدی با اطلاعات شخصی - 350 تومان"]
-            ], resize_keyboard=True)
+            reply_markup=ReplyKeyboardMarkup(
+                [
+                    ["📦 اپل آیدی 2018 - 250 تومان"],
+                    ["📦 اپل آیدی 2025 - 200 تومان"],
+                    ["📝 اپل آیدی با اطلاعات شخصی - 350 تومان"],
+                ],
+                resize_keyboard=True,
+            ),
         )
     elif "2018" in text:
         user_data["product"] = "2018"
@@ -88,28 +79,35 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         msg = f"🧾 پیام جدید از {update.effective_user.full_name} ({update.effective_user.id}):\n\n{text}"
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
-        await update.message.reply_text("✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید.")
+        await update.message.reply_text(
+            "✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید."
+        )
 
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler))
+async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if update.message.reply_to_message:
+        original = update.message.reply_to_message
+        # فرض کنیم ادمین می‌خواهد به کاربر پاسخ دهد که پیامش را فوروارد کرده بود
+        await context.bot.send_message(
+            chat_id=original.forward_from.id, text=update.message.text
+        )
+        await update.message.reply_text("✅ پاسخ ارسال شد.")
 
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    application.create_task(application.update_queue.put(update))
-    return "OK"
+def main():
+    application = Application.builder().token(TOKEN).build()
 
-@app.route("/")
-def index():
-    return "Bot is running!"
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    application.add_handler(MessageHandler(filters.REPLY & filters.TEXT & filters.User(ADMIN_ID), support_response))
+
+    # راه‌اندازی وبهوک
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=f"https://appleid035.onrender.com/{TOKEN}",
+    )
 
 if __name__ == "__main__":
-    import asyncio
-    import uvicorn
-
-    async def set_webhook():
-        url = f"https://yourapp.onrender.com/{TOKEN}"  # آدرس وبهوک خودت رو وارد کن
-        await bot.set_webhook(url)
-
-    asyncio.run(set_webhook())
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    main()
