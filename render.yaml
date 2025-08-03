@@ -4,9 +4,9 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python bot.py"
+    startCommand: "python app.py"
     envVars:
       - key: BOT_TOKEN
         value: "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
       - key: WEBHOOK_URL
-        value: "https://appleid035.onrender.com"  # آدرس پروژه‌ات روی Render
+        value: "https://appleid035.onrender.com"
