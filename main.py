@@ -40,7 +40,7 @@ def index():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    update = telebot.types.Update.de_json(request.stream.read().decode("utf-8"))
+    update = telebot.types.Update.de_json(request.get_data(as_text=True))
     bot.process_new_updates([update])
     return 'ok'
 
@@ -252,6 +252,7 @@ def handle_paid(message):
     bot.send_message(user_id, f"📥 [عضویت در کانال VIP]({CHANNEL_LINK})", parse_mode='Markdown')
 
 if __name__ == '__main__':
+    # در صورت تمایل می‌توانید قبل از ست وب‌هوک حذفش کنید
     bot.remove_webhook()
-bot.set_webhook(url='https://appleid035.onrender.com/webhook')
+    bot.set_webhook(url='https://appleid035.onrender.com/webhook')
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
