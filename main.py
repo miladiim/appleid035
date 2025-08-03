@@ -8,7 +8,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
 CHANNEL_ID = -1002891641618
 ADMIN_ID = 368422936
-WEBHOOK_URL = "https://vip-bot-milad.onrender.com"  # آدرس واقعی پروژه در Render
+WEBHOOK_URL = "https://appleid035.onrender.com"  # آدرس واقعی پروژه در Render
 
 # محصولات اپل‌آیدی
 PRODUCTS = {
