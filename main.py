@@ -122,9 +122,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("❌ ارسال پیام ناموفق بود.")
 
-if __name__ == "__main__":
-    app_telegram = Application.builder().token(TOKEN).build()
-    app_telegram.add_handler(CommandHandler("start", start))
-    app_telegram.add_handler(MessageHandler(filters.CONTACT, handle_contact))
-    app_telegram.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler))
-    app_telegram.run_polling()
+if __name__ == '__main__':
+    threading.Thread(target=check_expiry, daemon=True).start()
+    bot.remove_webhook()
+    bot.set_webhook(url='https://vip-bot-s9p9.onrender.com/webhook')
+    app.run(host="0.0.0.0", port=5000)
