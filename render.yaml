@@ -1,10 +1,12 @@
 services:
   - type: web
-    name: appleid035
+    name: telegram-bot
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python bot.py"
     envVars:
       - key: BOT_TOKEN
-        value: 8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs
+        value: "توکن_ربات_تو_اینجا"
+      - key: WEBHOOK_URL
+        value: "https://yourproject.onrender.com"  # آدرس پروژه‌ات روی Render
