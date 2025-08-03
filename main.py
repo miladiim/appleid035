@@ -4,10 +4,10 @@ from flask import Flask, request
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-TOKEN = os.getenv("8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs")
+TOKEN = os.getenv("BOT_TOKEN") or "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
-WEBHOOK_URL = "https://appleid035.onrender.com"  # این رو با آدرس واقعی رندر عوض کن
+WEBHOOK_URL = "https://appleid035.onrender.com"  # آدرس نهایی اپت در Render
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -22,23 +22,13 @@ CARD_NUMBER = "6219 8619 0952 136\nبه نام: میلاد"
 
 application = Application.builder().token(TOKEN).build()
 
-# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    try:
-        member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
-        if member.status in ["left", "kicked"]:
-            btn = InlineKeyboardMarkup([[
-                InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")
-            ]])
-            await update.message.reply_text("👋 لطفا اول عضو کانال شو:", reply_markup=btn)
-            return
-    except:
-        # اگر خطایی در گرفتن وضعیت عضویت بود فرض می‌کنیم عضو نیست
-        btn = InlineKeyboardMarkup([[
-            InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")
-        ]])
-        await update.message.reply_text("👋 لطفا اول عضو کانال شو:", reply_markup=btn)
+    member = await context.bot.get_chat_member(CHANNEL_ID, user.id)
+
+    if member.status in ["left", "kicked"]:
+        btn = InlineKeyboardMarkup([[InlineKeyboardButton("عضویت در کانال 📢", url="https://t.me/appleid035")]])
+        await update.message.reply_text("👋 خوش اومدی! برای ادامه اول باید عضو کانال بشی:", reply_markup=btn)
         return
 
     await update.message.reply_text(
@@ -46,14 +36,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True)
     )
 
-# مدیریت پیام‌ها
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
 
     if text == "ارسال شماره":
         await update.message.reply_text(
-            "✅ شماره دریافت شد. یکی از گزینه‌ها رو انتخاب کن:",
+            "✅ شماره دریافت شد. حالا یکی از گزینه‌های زیر رو انتخاب کن:",
             reply_markup=ReplyKeyboardMarkup([
                 ["📦 اپل آیدی 2018 - 250 تومان"],
                 ["📦 اپل آیدی 2025 - 200 تومان"],
@@ -63,20 +52,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif "2018" in text:
         user_data["product"] = "2018"
         await update.message.reply_text(
-            f"🔻 لطفاً مبلغ {PRODUCTS['2018']['price']} تومان را به کارت زیر واریز کن:\n\n"
-            f"{CARD_NUMBER}\n\nسپس رسید پرداخت را همینجا ارسال کن."
+            f"🔻 لطفاً مبلغ {PRODUCTS['2018']['price']} تومان رو به شماره کارت زیر واریز کن:\n\n"
+            f"{CARD_NUMBER}\n\nسپس رسید پرداخت رو همینجا ارسال کن."
         )
     elif "2025" in text:
         user_data["product"] = "2025"
         await update.message.reply_text(
-            f"🔻 لطفاً مبلغ {PRODUCTS['2025']['price']} تومان را به کارت زیر واریز کن:\n\n"
-            f"{CARD_NUMBER}\n\nسپس رسید پرداخت را همینجا ارسال کن."
+            f"🔻 لطفاً مبلغ {PRODUCTS['2025']['price']} تومان رو به شماره کارت زیر واریز کن:\n\n"
+            f"{CARD_NUMBER}\n\nسپس رسید پرداخت رو همینجا ارسال کن."
         )
     elif "اطلاعات شخصی" in text:
         user_data["product"] = "custom"
         await update.message.reply_text(
-            f"🔻 لطفاً مبلغ {PRODUCTS['custom']['price']} تومان را به کارت زیر واریز کن:\n\n"
-            f"{CARD_NUMBER}\n\nسپس رسید پرداخت به همراه اسم و فامیل صاحب اپل آیدی را همینجا بفرست."
+            f"🔻 لطفاً مبلغ {PRODUCTS['custom']['price']} تومان رو به شماره کارت زیر واریز کن:\n\n"
+            f"{CARD_NUMBER}\n\nسپس رسید پرداخت به همراه اسم و فامیل صاحب اپل آیدی رو همینجا بفرست."
         )
     else:
         msg = f"🧾 پیام جدید از {update.effective_user.full_name} ({update.effective_user.id}):\n\n{text}"
@@ -89,14 +78,13 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    application._dispatcher.process_update(update)
-    return "OK"
+    application.update_queue.put_nowait(update)
+    return "ok"
 
 @app.route("/")
-def index():
-    return "Bot is running."
+async def set_webhook():
+    await application.bot.set_webhook(f"{WEBHOOK_URL}/{TOKEN}")
+    return "Webhook set!"
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(application.bot.set_webhook(f"{WEBHOOK_URL}/{TOKEN}"))
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    application.run_polling()
