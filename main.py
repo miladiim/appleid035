@@ -222,9 +222,8 @@ def broadcast_step(message):
 
 def run_bot():
     bot.remove_webhook()
-bot.set_webhook(url='https://appleid035.onrender.com/webhook')
+    bot.set_webhook(url='https://appleid035.onrender.com/webhook')  # ← دامنه واقعی روی Render
     app.run(host='0.0.0.0', port=5000)
 
 if __name__ == '__main__':
-    threading.Thread(target=run_bot).start()
-
+    run_bot()
