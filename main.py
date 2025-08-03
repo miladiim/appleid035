@@ -222,7 +222,7 @@ def broadcast_step(message):
 
 def run_bot():
     bot.remove_webhook()
-    bot.set_webhook(url='https://yourdomain.com/webhook')  # این را با دامنه خودت جایگزین کن
+bot.set_webhook(url='https://appleid035.onrender.com/webhook')
     app.run(host='0.0.0.0', port=5000)
 
 if __name__ == '__main__':
