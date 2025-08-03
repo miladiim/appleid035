@@ -3,8 +3,7 @@ import asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# اطلاعات ربات و آدرس وبهوک
-TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
+TOKEN = "توکن_ربات_تو"
 WEBHOOK_URL = "https://appleid035.onrender.com/"
 
 app = Flask(__name__)
@@ -17,13 +16,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 telegram_app = ApplicationBuilder().token(TOKEN).build()
 telegram_app.add_handler(CommandHandler("start", start))
 
-# ست کردن وبهوک هنگام اجرای برنامه
+# ست کردن وبهوک هنگام شروع (یکبار)
 async def set_webhook():
     await telegram_app.bot.set_webhook(WEBHOOK_URL)
 
 asyncio.run(set_webhook())
 
-# دریافت آپدیت‌ها از تلگرام و فرستادن به اپلیکیشن تلگرام
 @app.route("/", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), telegram_app.bot)
