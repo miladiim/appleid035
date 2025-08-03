@@ -1,26 +1,29 @@
 import os
 from flask import Flask, request
 from telegram import Update
-from telegram.ext import Application
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-PORT = int(os.getenv("PORT", 8443))
+TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
+WEBHOOK_URL = "https://appleid035.onrender.com"
 
 app = Flask(__name__)
 application = Application.builder().token(TOKEN).build()
 
-@app.route(f'/{TOKEN}', methods=['POST'])
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("سلام! ربات با موفقیت فعال شد.")
+
+application.add_handler(CommandHandler("start", start))
+
+@app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.update_queue.put_nowait(update)
     return "ok"
 
 @app.route("/")
-async def index():
-    # ست کردن وبهوک هر بار که رندر سایت بالا میاد (مناسب برای تست)
+async def set_webhook():
     await application.bot.set_webhook(f"{WEBHOOK_URL}/{TOKEN}")
-    return "Webhook set!"
+    return "Webhook تنظیم شد!"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT)
+    application.run_polling()
