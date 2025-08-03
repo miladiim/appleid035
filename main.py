@@ -1,17 +1,16 @@
 import logging
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# مشخصات ربات و کانال و ادمین
 TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
+
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 START_MSG = "👋 خوش اومدی! لطفا اول عضو کانال پشتیبانی بشید:"
 CARD_NUMBER = "6219 8619 0952 136\nبه نام: میلاد"
@@ -22,12 +21,6 @@ PRODUCTS = {
     "custom": {"price": "350,000", "title": "اپل آیدی با اطلاعات شخصی"},
 }
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     try:
@@ -48,7 +41,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup([["ارسال شماره"]], resize_keyboard=True),
     )
 
-# مدیریت پیام‌ها
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
@@ -84,12 +76,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{CARD_NUMBER}\n\nسپس رسید پرداخت به همراه اسم و فامیل صاحب اپل آیدی رو همینجا بفرست."
         )
     else:
-        # پیام به ادمین فوروارد شود
         msg = f"🧾 پیام جدید از {update.effective_user.full_name} ({update.effective_user.id}):\n\n{text}"
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
         await update.message.reply_text("✅ پیام شما ثبت شد. منتظر پاسخ پشتیبانی باشید.")
 
-# پاسخ ادمین به پیام‌ها (ریپلای)
 async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -97,7 +87,6 @@ async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
         original_msg = update.message.reply_to_message.text
         user_id = None
 
-        # استخراج آیدی کاربر از پیام ارسالی به ادمین
         try:
             first_line = original_msg.split("\n")[0]
             user_id = int(first_line.split("(")[1].split(")")[0])
@@ -105,7 +94,6 @@ async def support_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
         if user_id:
-            # پیام ادمین را به کاربر ارسال کن
             await context.bot.send_message(chat_id=user_id, text=f"👨‍💻 پاسخ پشتیبانی:\n\n{update.message.text}")
 
 def main():
