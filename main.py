@@ -253,5 +253,5 @@ def handle_paid(message):
 
 if __name__ == '__main__':
     bot.remove_webhook()
-    bot.set_webhook(url='https://YOUR-RENDER-URL/webhook')  # آدرس وب‌هوک خودت را بگذار
+    bot.set_webhook(url='https://appleid035.onrender.com')  # آدرس وب‌هوک خودت را بگذار
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
