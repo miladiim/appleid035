@@ -1,129 +1,138 @@
 import logging
 from flask import Flask, request
 from telegram import (
-    Update,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
+    Update, KeyboardButton, ReplyKeyboardMarkup,
+    ReplyKeyboardRemove, InputMediaPhoto
 )
 from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
+    Application, CommandHandler, MessageHandler,
+    ContextTypes, filters
 )
 from pymongo import MongoClient
 import json
-import requests
 
-# Load config
-with open("config.json", "r") as f:
-    config = json.load(f)
+# پیکربندی
+TOKEN = "494613530:AAHQFmKNzgoehLf9i35mIPn1Z8WhtkrBZa4"
+ADMIN_ID = 368422936
+CARD_NUMBER = "6037991234567890"
 
-TOKEN = "8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs"
-CHANNEL_LINK = config["channel"]
-ADMIN_ID = 368422936  # آیدی عددی ادمین
+# اتصال به دیتابیس
+client = MongoClient("mongodb+srv://vipadmin:milad137555@cluster0.g6mqucj.mongodb.net")
+db = client["vip_bot"]
+users_col = db["users"]
+orders_col = db["orders"]
 
+# راه‌اندازی فلَسک
+app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
-
-@app.route("/")
-def index():
-    return "Bot is running."
-
-# Telegram Handlers
-
+# شروع ربات
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    keyboard = [[KeyboardButton("ارسال شماره 📱", request_contact=True)]]
-    await update.message.reply_text("برای شروع شماره موبایل خود را ارسال کنید:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True))
+    button = KeyboardButton("ارسال شماره 📱", request_contact=True)
+    markup = ReplyKeyboardMarkup([[button]], resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("لطفاً شماره موبایل خود را ارسال کنید:", reply_markup=markup)
 
+# ذخیره شماره موبایل و نمایش گزینه‌ها
 async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     contact = update.message.contact
     user_id = update.effective_user.id
+    phone = contact.phone_number
 
-    users_col.update_one({"user_id": user_id}, {"$set": {
-        "user_id": user_id,
-        "phone_number": contact.phone_number,
-        "step": "menu"
-    }}, upsert=True)
-
-    keyboard = [
-        ["🟣 خرید اپل‌آیدی آماده 2025 - 200 هزار"],
-        ["🟢 خرید اپل‌آیدی آماده 2018 - 300 هزار"],
-        ["🔴 خرید اپل‌آیدی با اطلاعات شخصی - 350 هزار"]
-    ]
-    await update.message.reply_text(
-        "✅ شماره ثبت شد. یکی از گزینه‌های زیر را انتخاب کنید:",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    users_col.update_one(
+        {"user_id": user_id},
+        {"$set": {"phone": phone}},
+        upsert=True
     )
 
+    buttons = [
+        ["🟣 اپل‌آیدی آماده 2025 - 200 هزار تومان"],
+        ["🔵 اپل‌آیدی آماده 2018 - 300 هزار تومان"],
+        ["🟢 اپل‌آیدی با اطلاعات شخصی - 350 هزار تومان"]
+    ]
+    markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+    await update.message.reply_text("یک گزینه را برای خرید انتخاب کنید:", reply_markup=markup)
+
+# مدیریت انتخاب محصول
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
-    user = users_col.find_one({"user_id": user_id}) or {}
 
-    if text.startswith("🟣"):
-        users_col.update_one({"user_id": user_id}, {"$set": {"step": "waiting_receipt", "product": "اپل‌آیدی 2025 - 200 هزار"}})
-        await update.message.reply_text("مبلغ 200,000 تومان به شماره کارت زیر واریز کنید و رسید را ارسال نمایید:
+    if "آماده 2025" in text:
+        product = "اپل‌آیدی آماده 2025"
+        price = 200000
+    elif "آماده 2018" in text:
+        product = "اپل‌آیدی آماده 2018"
+        price = 300000
+    elif "اطلاعات شخصی" in text:
+        product = "اپل‌آیدی با اطلاعات شخصی"
+        price = 350000
+        await update.message.reply_text("🔶 لطفاً *نام و نام خانوادگی* خود را هم همراه با رسید ارسال کنید.", parse_mode="Markdown")
+    else:
+        # رسید پرداخت یا پیام دیگر
+        if update.message.photo:
+            caption = update.message.caption or ""
+            orders_col.insert_one({
+                "user_id": user_id,
+                "photo": True,
+                "caption": caption
+            })
+            await context.bot.send_photo(
+                chat_id=ADMIN_ID,
+                photo=update.message.photo[-1].file_id,
+                caption=f"✅ رسید جدید از کاربر {user_id}\n{caption}"
+            )
+            await update.message.reply_text("✅ رسید شما دریافت شد. منتظر تأیید ادمین بمانید.")
+        else:
+            await context.bot.send_message(chat_id=ADMIN_ID, text=f"📨 پیام جدید از {user_id}:\n{text}")
+            await update.message.reply_text("📩 پیام شما به ادمین ارسال شد.")
+        return
 
-6037 9917 1234 5678")
+    # ذخیره سفارش در دیتابیس
+    users_col.update_one({"user_id": user_id}, {"$set": {
+        "selected_product": product,
+        "price": price
+    }})
 
-    elif text.startswith("🟢"):
-        users_col.update_one({"user_id": user_id}, {"$set": {"step": "waiting_receipt", "product": "اپل‌آیدی 2018 - 300 هزار"}})
-        await update.message.reply_text("مبلغ 300,000 تومان به شماره کارت زیر واریز کنید و رسید را ارسال نمایید:
+    await update.message.reply_text(
+        f"✅ محصول انتخابی: {product}\n💳 لطفاً مبلغ {price:,} تومان را به شماره کارت زیر واریز کرده و رسید را ارسال کنید:\n\n`{CARD_NUMBER}`",
+        parse_mode="Markdown"
+    )
 
-6037 9917 1234 5678")
+# پاسخ ادمین به کاربر
+async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
 
-    elif text.startswith("🔴"):
-        users_col.update_one({"user_id": user_id}, {"$set": {"step": "waiting_info", "product": "اپل‌آیدی اطلاعات شخصی - 350 هزار"}})
-        await update.message.reply_text(
-            "مبلغ 350,000 تومان به شماره کارت زیر واریز کنید:
+    if update.message.reply_to_message:
+        original_text = update.message.reply_to_message.text
+        lines = original_text.split()
+        for line in lines:
+            if line.isdigit():
+                target_user = int(line)
+                await context.bot.send_message(chat_id=target_user, text=update.message.text)
+                await update.message.reply_text("✅ پیام برای کاربر ارسال شد.")
+                return
+    await update.message.reply_text("⛔️ این پاسخ، ریپلای روی پیام کاربر نیست.")
 
-6037 9917 1234 5678
+# وب‌هوک تلگرام
+@app.route("/", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), Application.builder().token(TOKEN).build().bot)
+    Application.builder().token(TOKEN).build().process_update(update)
+    return "ok"
 
-سپس رسید + نام و نام خانوادگی خود را ارسال کنید.
-مثال:
-رسید پرداخت 350 تومن
-نام: علی رضایی")
+@app.route("/")
+def index():
+    return "ربات فعال است."
 
-    elif user.get("step") == "waiting_receipt":
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"📥 رسید جدید:
+# اجرای ربات
+def main():
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.CONTACT, handle_contact))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=ADMIN_ID), admin_reply))
+    application.run_polling()
 
-از: {user_id}
-محصول: {user.get('product')}
-
-{text}"
-        )
-        await update.message.reply_text("✅ رسید ارسال شد. منتظر تایید ادمین باشید.")
-
-    elif user.get("step") == "waiting_info":
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"📥 اطلاعات خرید اپل‌آیدی شخصی:
-
-از: {user_id}
-{user.get('product')}
-
-{text}"
-        )
-        await update.message.reply_text("✅ اطلاعات ارسال شد. منتظر دریافت اپل‌آیدی از طرف ادمین باشید.")
-
-    elif user_id == ADMIN_ID and update.message.reply_to_message:
-        target_id = update.message.reply_to_message.text.split("
-")[2].replace("از: ", "")
-        try:
-            target_id = int(target_id)
-            await context.bot.send_message(chat_id=target_id, text=f"📤 پاسخ ادمین:
-{update.message.text}")
-            await update.message.reply_text("✅ پیام برای کاربر ارسال شد.")
-        except:
-            await update.message.reply_text("❌ ارسال پیام ناموفق بود.")
-
-if __name__ == '__main__':
-    threading.Thread(target=check_expiry, daemon=True).start()
-    bot.remove_webhook()
-    bot.set_webhook(url='https://vip-bot-s9p9.onrender.com/webhook')
-    app.run(host="0.0.0.0", port=5000)
+if __name__ == "__main__":
+    main()
