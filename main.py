@@ -4,10 +4,10 @@ from flask import Flask, request
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-TOKEN = os.getenv("8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs")
+TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = -1002276225309
 ADMIN_ID = 368422936
-WEBHOOK_URL = "https://appleid035.onrender.com"  # این رو با آدرس واقعی رندر عوض کن
+WEBHOOK_URL = "https://your-render-url.onrender.com"  # این رو با آدرس واقعی رندر عوض کن
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
