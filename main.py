@@ -68,11 +68,6 @@ def handle_contact(message):
     # ارسال منوی اصلی بدون دکمه ارسال شماره موبایل (حذف دکمه ارسال شماره پس از ارسال)
     send_main_menu(message.chat.id)
 
-# حذف handler شماره موبایل دستی (func=lambda m: m.text == '📱 ارسال شماره موبایل') که قبلا وجود داشت
-# تا کاربر فقط بتواند با دکمه ارسال شماره، شماره را بفرستد و شماره دستی تایپ نکند.
-
-# ادامه کد قبلی خرید اپل‌آیدی، رسید پرداخت و تیکت‌ها بدون تغییر
-
 @bot.message_handler(func=lambda m: m.text == '🛒 خرید اپل‌آیدی')
 def show_appleid_menu(message):
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
@@ -82,8 +77,6 @@ def show_appleid_menu(message):
         telebot.types.InlineKeyboardButton("🔐 اپل‌آیدی با اطلاعات شخصی (350,000 تومان)", callback_data='buy_personal')
     )
     bot.send_message(message.chat.id, "لطفاً نوع اپل‌آیدی مورد نظر خود را انتخاب کنید:", reply_markup=markup)
-
-# بقیه‌ی کدها دقیقاً مثل شما بدون تغییر باقی می‌ماند
 
 @bot.message_handler(func=lambda m: m.text == '🎫 تیکت به پشتیبانی')
 def support_ticket(message):
@@ -115,6 +108,17 @@ def forward_ticket(message):
     bot.send_message(ADMIN_ID, f"📩 پیام از کاربر {user_id}:\n{message.text}")
     bot.send_message(user_id, "✅ پیام شما به پشتیبانی ارسال شد.")
 
+# اینجا دقیقا اضافه شده: هندلر کال‌بک‌ها
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback(call):
+    bot.answer_callback_query(call.id)
+    if call.data == 'buy_2018':
+        bot.send_message(call.from_user.id, "شما اپل‌آیدی ساخت 2018 آمریکا را انتخاب کردید.")
+    elif call.data == 'buy_2025':
+        bot.send_message(call.from_user.id, "شما اپل‌آیدی ساخت 2025 آمریکا را انتخاب کردید.")
+    elif call.data == 'buy_personal':
+        bot.send_message(call.from_user.id, "شما اپل‌آیدی با اطلاعات شخصی را انتخاب کردید.")
+
 def run_bot():
     bot.remove_webhook()
     bot.set_webhook(url='https://appleid035.onrender.com/webhook')  # ← دامنه واقعی روی Render
@@ -122,5 +126,3 @@ def run_bot():
 
 if __name__ == '__main__':
     run_bot()
-
-    
