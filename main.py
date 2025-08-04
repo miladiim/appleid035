@@ -146,9 +146,9 @@ def callback_buy_appleid(call):
 
     appleid_type = call.data
     prices = {
-        'buy_2018': (250000, "1234-5678-9012-3456"),
-        'buy_2025': (200000, "1234-5678-9012-3456"),
-        'buy_personal': (350000, "1234-5678-9012-3456"),
+        'buy_2018': (250000, "1386-0952-8619-6219"),
+        'buy_2025': (200000, "1386-0952-8619-6219"),
+        'buy_personal': (350000, "1386-0952-8619-6219"),
     }
     if appleid_type not in prices:
         bot.answer_callback_query(call.id, "انتخاب نامعتبر است.")
