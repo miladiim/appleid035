@@ -78,6 +78,48 @@ def show_appleid_menu(message):
     )
     bot.send_message(message.chat.id, "لطفاً نوع اپل‌آیدی مورد نظر خود را انتخاب کنید:", reply_markup=markup)
 
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback(call):
+    bot.answer_callback_query(call.id)
+    user_id = call.from_user.id
+
+    if user_id not in users:
+        users[user_id] = {}
+
+    if call.data == 'buy_2018':
+        text = ("شما اپل‌آیدی ساخت 2018 آمریکا را انتخاب کردید.\n"
+                "لطفاً مبلغ 250,000 تومان را به شماره کارت 1234-5678-9012-3456 واریز کنید.\n"
+                "پس از واریز، لطفاً عکس رسید پرداخت را ارسال کنید.")
+        users[user_id]["selected_appleid"] = "2018"
+        bot.send_message(user_id, text)
+
+    elif call.data == 'buy_2025':
+        text = ("شما اپل‌آیدی ساخت 2025 آمریکا را انتخاب کردید.\n"
+                "لطفاً مبلغ 200,000 تومان را به شماره کارت 1234-5678-9012-3456 واریز کنید.\n"
+                "پس از واریز، لطفاً عکس رسید پرداخت را ارسال کنید.")
+        users[user_id]["selected_appleid"] = "2025"
+        bot.send_message(user_id, text)
+
+    elif call.data == 'buy_personal':
+        text = ("شما اپل‌آیدی با اطلاعات شخصی را انتخاب کردید.\n"
+                "لطفاً مبلغ 350,000 تومان را به شماره کارت 1234-5678-9012-3456 واریز کنید.\n"
+                "پس از واریز، لطفاً عکس رسید پرداخت را ارسال کنید.")
+        users[user_id]["selected_appleid"] = "personal"
+        bot.send_message(user_id, text)
+
+@bot.message_handler(content_types=['photo'])
+def handle_payment_receipt(message):
+    user_id = message.from_user.id
+    if user_id not in users or "selected_appleid" not in users[user_id]:
+        bot.send_message(user_id, "لطفاً ابتدا نوع اپل‌آیدی را انتخاب کنید.")
+        return
+    
+    # فوروارد کردن عکس رسید به ادمین
+    bot.forward_message(ADMIN_ID, user_id, message.message_id)
+    
+    # اطلاع به کاربر
+    bot.send_message(user_id, "✅ رسید پرداخت شما دریافت شد. پس از تایید، اپل‌آیدی برای شما ارسال خواهد شد.")
+
 @bot.message_handler(func=lambda m: m.text == '🎫 تیکت به پشتیبانی')
 def support_ticket(message):
     user_id = message.from_user.id
@@ -107,17 +149,6 @@ def forward_ticket(message):
     user_id = message.from_user.id
     bot.send_message(ADMIN_ID, f"📩 پیام از کاربر {user_id}:\n{message.text}")
     bot.send_message(user_id, "✅ پیام شما به پشتیبانی ارسال شد.")
-
-# اینجا دقیقا اضافه شده: هندلر کال‌بک‌ها
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback(call):
-    bot.answer_callback_query(call.id)
-    if call.data == 'buy_2018':
-        bot.send_message(call.from_user.id, "شما اپل‌آیدی ساخت 2018 آمریکا را انتخاب کردید.")
-    elif call.data == 'buy_2025':
-        bot.send_message(call.from_user.id, "شما اپل‌آیدی ساخت 2025 آمریکا را انتخاب کردید.")
-    elif call.data == 'buy_personal':
-        bot.send_message(call.from_user.id, "شما اپل‌آیدی با اطلاعات شخصی را انتخاب کردید.")
 
 def run_bot():
     bot.remove_webhook()
