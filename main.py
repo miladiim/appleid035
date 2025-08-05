@@ -79,15 +79,12 @@ def start(message):
         return
     send_main_menu(user_id)
 
-@bot.message_handler(func=lambda m: m.text == "💲 قیمت و موجودی")
+@@bot.message_handler(func=lambda m: m.text == "💲 قیمت و موجودی")
 def show_prices(message):
-    text = "📦 لیست محصولات:
-"
+    text = "📦 لیست محصولات:\n"
     for p in products:
-        text += f"- {p['name']} | قیمت: {p['price']:,} تومان | موجودی: {p['stock']} عدد
-"
+        text += f"- {p['name']} | قیمت: {p['price']:,} تومان | موجودی: {p['stock']} عدد\n"
     bot.send_message(message.chat.id, text)
-
 @bot.message_handler(func=lambda m: m.text == "💳 شارژ حساب")
 def charge_account(message):
     bot.send_message(message.chat.id, "برای شارژ کارت به کارت کنید و رسید را ارسال کنید:
