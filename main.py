@@ -6,6 +6,7 @@ import datetime
 
 API_TOKEN = '8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs'
 ADMIN_ID = 368422936
+CARD_NUMBER = '6037-9911-9073-3544'
 
 bot = telebot.TeleBot(API_TOKEN)
 app = Flask(__name__)
@@ -19,8 +20,6 @@ PRODUCTS = [
     {"id": 2, "name": "اپل‌آیدی آماده 2025", "price": 200000},
     {"id": 3, "name": "اپل‌آیدی با اطلاعات شخصی شما", "price": 300000},
 ]
-
-CARD_NUMBER = '6037-9911-9073-3544'  # شماره کارت
 
 def load_data(filename, default):
     if not os.path.exists(filename):
@@ -73,7 +72,6 @@ def send_main_menu(chat_id):
     )
     bot.send_message(chat_id, "📋 منوی اصلی:", reply_markup=markup)
 
-# ----- Flask Route -----
 @app.route('/', methods=['GET'])
 def index():
     return 'Bot is running'
@@ -84,7 +82,6 @@ def webhook():
     bot.process_new_updates([update])
     return 'ok'
 
-# ----- Start -----
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
@@ -98,45 +95,49 @@ def start(message):
             "wallet": 0,
             "purchases": 0
         })
-        bot.send_message(user_id, "👋 سلام! لطفاً شماره موبایل خود را وارد کنید:")
-        return
-    if user.get("mobile") == "":
-        bot.send_message(user_id, "لطفاً شماره موبایل خود را وارد کنید:")
+    user = get_user(user_id)
+    if not user.get("mobile"):
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        markup.add(telebot.types.KeyboardButton("📱 ارسال شماره موبایل", request_contact=True))
+        bot.send_message(user_id, "برای ادامه، لطفاً شماره موبایل خود را ارسال کنید:", reply_markup=markup)
         return
     send_main_menu(user_id)
 
-# ----- ثبت شماره موبایل -----
-@bot.message_handler(func=lambda m: get_user(m.from_user.id) and get_user(m.from_user.id).get('mobile', '') == "" and m.text.isdigit())
-def save_mobile(message):
-    user = get_user(message.from_user.id)
-    user["mobile"] = message.text
-    set_user(message.from_user.id, user)
-    bot.send_message(message.chat.id, "✅ شماره موبایل شما ثبت شد.")
-    send_main_menu(message.chat.id)
+@bot.message_handler(content_types=['contact'])
+def handle_contact(message):
+    user_id = message.from_user.id
+    mobile = message.contact.phone_number
+    user = get_user(user_id)
+    if user:
+        user["mobile"] = mobile
+        set_user(user_id, user)
+        bot.send_message(user_id, "✅ شماره موبایل شما ثبت شد.")
+        send_main_menu(user_id)
 
 @bot.message_handler(func=lambda m: m.text == "🛒 خرید اپل‌آیدی")
 def buy_appleid(message):
-    markup = telebot.types.InlineKeyboardMarkup()
     for p in PRODUCTS:
+        markup = telebot.types.InlineKeyboardMarkup()
         markup.add(
-            telebot.types.InlineKeyboardButton(
-                f"{p['name']} - {p['price']:,} تومان | کارت به کارت", callback_data=f"buy_card_{p['id']}"
-            ),
-            telebot.types.InlineKeyboardButton(
-                f"{p['name']} - {p['price']:,} تومان | خرید از کیف پول", callback_data=f"buy_wallet_{p['id']}"
-            )
+            telebot.types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{p['id']}"),
+            telebot.types.InlineKeyboardButton("💰 خرید از کیف پول", callback_data=f"pay_wallet_{p['id']}")
         )
-    bot.send_message(message.chat.id, "🔽 یکی از محصولات زیر را انتخاب کنید:", reply_markup=markup)
+        text = f"🔹 {p['name']}\n💰 قیمت: {p['price']:,} تومان\n\nروش پرداخت را انتخاب کنید:"
+        bot.send_message(message.chat.id, text, reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("buy_card_"))
-def buy_card_step(call):
+@bot.callback_query_handler(func=lambda call: call.data.startswith("pay_card_"))
+def pay_card(call):
     product_id = int(call.data.split("_")[2])
     product = next((p for p in PRODUCTS if p["id"] == product_id), None)
     if not product:
         bot.answer_callback_query(call.id, "محصول یافت نشد")
         return
-    msg = f"💳 لطفاً مبلغ {product['price']:,} تومان را به شماره کارت زیر واریز کنید و تصویر رسید را ارسال نمایید:\n\n{CARD_NUMBER}\n\nپس از ارسال رسید، خرید شما بررسی می‌شود."
-    bot.send_message(call.message.chat.id, msg)
+    text = (
+        f"💳 برای خرید {product['name']} به مبلغ {product['price']:,} تومان:\n"
+        f"۱. مبلغ را به شماره کارت زیر واریز کنید:\n\n{CARD_NUMBER}\n\n"
+        f"۲. سپس رسید پرداخت را ارسال کنید."
+    )
+    bot.send_message(call.message.chat.id, text)
     bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: receive_receipt(m, product))
 
 def receive_receipt(message, product):
@@ -151,7 +152,6 @@ def receive_receipt(message, product):
             "msg_id": None
         }
         add_payment(payment)
-        # به ادمین اطلاع بده
         caption = (
             f"🆕 رسید خرید\n"
             f"کاربر: {message.from_user.first_name}\n"
@@ -164,13 +164,12 @@ def receive_receipt(message, product):
         photo_id = message.photo[-1].file_id
         msg = bot.send_photo(ADMIN_ID, photo_id, caption=caption, reply_markup=markup)
         payment["msg_id"] = msg.message_id
-        # ذخیره شماره پیام ادمین برای پیگیری
         payments = get_payments()
         payments[-1]["msg_id"] = msg.message_id
         save_data(PAYMENTS_FILE, payments)
         bot.send_message(message.chat.id, "✅ رسید شما ارسال شد، منتظر تایید مدیر باشید.")
     else:
-        bot.send_message(message.chat.id, "لطفاً تصویر رسید را ارسال کنید.")
+        bot.send_message(message.chat.id, "❌ لطفاً تصویر رسید را ارسال کنید.")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_buy_"))
 def reply_to_buy(call):
@@ -182,8 +181,8 @@ def admin_reply_buy(message, user_id):
     bot.send_message(user_id, f"📩 پاسخ مدیر: {message.text}")
     bot.send_message(message.chat.id, "✅ پیام شما به کاربر ارسال شد.")
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("buy_wallet_"))
-def buy_wallet_step(call):
+@bot.callback_query_handler(func=lambda call: call.data.startswith("pay_wallet_"))
+def pay_wallet(call):
     product_id = int(call.data.split("_")[2])
     product = next((p for p in PRODUCTS if p["id"] == product_id), None)
     user = get_user(call.from_user.id)
@@ -222,7 +221,6 @@ def handle_support(message):
         "msg_id": None
     }
     add_support(ticket)
-    # ارسال برای ادمین
     caption = (
         f"🎫 تیکت پشتیبانی\n"
         f"کاربر: {user['name']}\n"
@@ -251,7 +249,6 @@ def admin_reply_ticket(message, user_id):
 @bot.message_handler(func=lambda m: m.text == "💳 شارژ حساب")
 def charge_account(message):
     bot.send_message(message.chat.id, f"برای شارژ حساب، مبلغ مورد نظر را به شماره کارت زیر واریز کرده و رسید را ارسال کنید:\n\n{CARD_NUMBER}")
-
     bot.register_next_step_handler(message, receive_charge_receipt)
 
 def receive_charge_receipt(message):
