@@ -73,7 +73,7 @@ def start(message):
     user_id = message.from_user.id
     if not is_member(user_id):
         join_markup = telebot.types.InlineKeyboardMarkup()
-        join_markup.add(telebot.types.InlineKeyboardButton("عضویت در کانال", url="https://t.me/your_channel"))
+        join_markup.add(telebot.types.InlineKeyboardButton("عضویت در کانال", url="https://t.me/appleid035"))
         bot.send_message(user_id, "برای استفاده از ربات ابتدا در کانال عضو شوید و سپس /start را بزنید.", reply_markup=join_markup)
         return
 
