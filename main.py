@@ -1,4 +1,3 @@
-
 from flask import Flask, request
 import telebot
 import os
@@ -79,17 +78,19 @@ def start(message):
         return
     send_main_menu(user_id)
 
-@@bot.message_handler(func=lambda m: m.text == "💲 قیمت و موجودی")
+@bot.message_handler(func=lambda m: m.text == "💲 قیمت و موجودی")
 def show_prices(message):
     text = "📦 لیست محصولات:\n"
     for p in products:
-        text += f"- {p['name']} | قیمت: {p['price']:,} تومان | موجودی: {p['stock']} عدد\n"
+        text += f"- {p['name']} | 💰 قیمت: {p['price']:,} تومان | 📦 موجودی: {p['stock']} عدد\n"
     bot.send_message(message.chat.id, text)
+
 @bot.message_handler(func=lambda m: m.text == "💳 شارژ حساب")
 def charge_account(message):
-bot.send_message(message.chat.id, """برای شارژ کارت به کارت کنید و رسید را ارسال کنید:
+    bot.send_message(message.chat.id, """برای شارژ کارت به کارت کنید و رسید را ارسال کنید:
 💳 کارت: XXXX-XXXX-XXXX-XXXX
-سپس تصویر رسید را ارسال کنید.""")    bot.register_next_step_handler(message, receive_receipt)
+سپس تصویر رسید را ارسال کنید.""")
+    bot.register_next_step_handler(message, receive_receipt)
 
 def receive_receipt(message):
     if message.photo:
