@@ -73,13 +73,26 @@ def start(message):
     user_id = message.from_user.id
     if not is_member(user_id):
         join_markup = telebot.types.InlineKeyboardMarkup()
-        join_markup.add(telebot.types.InlineKeyboardButton("عضویت در کانال", url="https://t.me/appleid035"))
-        bot.send_message(user_id, "برای استفاده از ربات ابتدا در کانال عضو شوید.", reply_markup=join_markup)
+        join_markup.add(telebot.types.InlineKeyboardButton("عضویت در کانال", url="https://t.me/your_channel"))
+        bot.send_message(user_id, "برای استفاده از ربات ابتدا در کانال عضو شوید و سپس /start را بزنید.", reply_markup=join_markup)
         return
-    send_main_menu(user_id)
+
+    # درخواست شماره موبایل بعد از عضویت
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    btn = telebot.types.KeyboardButton("📱 ارسال شماره موبایل", request_contact=True)
+    markup.add(btn)
+    bot.send_message(user_id, "لطفاً شماره موبایل خود را ارسال کنید:", reply_markup=markup)
+
+@bot.message_handler(content_types=['contact'])
+def handle_contact(message):
+    bot.send_message(message.chat.id, "✅ شماره شما ثبت شد.")
+    send_main_menu(message.chat.id)
 
 @bot.message_handler(func=lambda m: m.text == "💲 قیمت و موجودی")
 def show_prices(message):
+    if not is_member(message.from_user.id):
+        bot.send_message(message.chat.id, "❌ لطفاً ابتدا در کانال عضو شوید و سپس دوباره تلاش کنید.")
+        return
     text = "📦 لیست محصولات:\n"
     for p in products:
         text += f"- {p['name']} | 💰 قیمت: {p['price']:,} تومان | 📦 موجودی: {p['stock']} عدد\n"
@@ -87,6 +100,9 @@ def show_prices(message):
 
 @bot.message_handler(func=lambda m: m.text == "💳 شارژ حساب")
 def charge_account(message):
+    if not is_member(message.from_user.id):
+        bot.send_message(message.chat.id, "❌ لطفاً ابتدا در کانال عضو شوید و سپس دوباره تلاش کنید.")
+        return
     bot.send_message(message.chat.id, """برای شارژ کارت به کارت کنید و رسید را ارسال کنید:
 💳 کارت: XXXX-XXXX-XXXX-XXXX
 سپس تصویر رسید را ارسال کنید.""")
