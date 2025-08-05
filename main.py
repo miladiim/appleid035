@@ -17,8 +17,8 @@ SUPPORT_FILE = 'support.json'
 ACCOUNTS_FILE = 'accounts.json'
 
 PRODUCTS = [
-    {"id": 1, "name": "جیمیل 2018 قدیمی", "price": 77000, "stock": 9},
-    {"id": 2, "name": "جیمیل 2025 جدید (کیفیت بالا)", "price": 77000, "stock": 12},
+    {"id": 1, "name": "جیمیل 2018 قدیمی", "price": 250000, "stock": 9},
+    {"id": 2, "name": "جیمیل 2025 جدید (کیفیت بالا)", "price": 200000, "stock": 12},
     {"id": 3, "name": "اپل‌آیدی با اطلاعات شخصی شما", "price": 300000, "stock": 1000},
 ]
 
@@ -62,7 +62,7 @@ def get_supports():
     return load_data(SUPPORT_FILE, [])
 
 def load_accounts():
-    return load_data(ACCOUNTS_FILE, {"1": [], "2": [], "3": []})
+    return load_data(ACCOUNTS_FILE, {"1": [], "2": []})
 
 def save_accounts(data):
     save_data(ACCOUNTS_FILE, data)
@@ -83,7 +83,6 @@ def give_account(product_id, user_id):
             "datetime": str(datetime.datetime.now())[:19]
         })
         set_user(user_id, user)
-        # کم کردن موجودی محصول
         for p in PRODUCTS:
             if p["id"] == product_id:
                 p["stock"] = max(0, p["stock"] - 1)
@@ -175,345 +174,139 @@ def product_info(call):
         f"💳 موجودی شما: {user['wallet']:,} تومان\n"
         f"💰 قیمت کل: {product['price']:,} تومان\n"
         "------\n"
-        "لطفاً تعداد اکانت‌ها را انتخاب کنید:"
-    )
-    markup = telebot.types.InlineKeyboardMarkup()
-    for i in range(1, min(product["stock"], 5)+1):
-        markup.add(telebot.types.InlineKeyboardButton(f"{i}", callback_data=f"buyqty_{product_id}_{i}"))
-    bot.send_message(call.message.chat.id, text, reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("buyqty_"))
-def choose_qty(call):
-    _, product_id, qty = call.data.split("_")
-    product_id = int(product_id)
-    qty = int(qty)
-    product = next((p for p in PRODUCTS if p["id"] == product_id), None)
-    user = get_user(call.from_user.id)
-    if not product:
-        bot.answer_callback_query(call.id, "محصول یافت نشد")
-        return
-    price = product["price"] * qty
-    if product["stock"] < qty:
-        bot.send_message(call.message.chat.id, "❌ تعداد موردنظر موجود نیست.")
-        return
-    text = (
-        f"📌 اطلاعات سرویس:\n"
-        f"🛒 سرویس: {product['name']}\n"
-        f"💰 قیمت هر اکانت: {product['price']:,} تومان\n"
-        f"🔢 تعداد انتخابی: {qty}\n"
-        f"💳 موجودی شما: {user['wallet']:,} تومان\n"
-        f"💰 قیمت کل: {price:,} تومان\n"
-        "------\n"
         "روش پرداخت را انتخاب کنید:"
     )
     markup = telebot.types.InlineKeyboardMarkup()
     markup.add(
-        telebot.types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{product_id}_{qty}"),
-        telebot.types.InlineKeyboardButton("💰 کیف پول", callback_data=f"pay_wallet_{product_id}_{qty}")
+        telebot.types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{product_id}"),
+        telebot.types.InlineKeyboardButton("💰 کیف پول", callback_data=f"pay_wallet_{product_id}")
     )
     bot.send_message(call.message.chat.id, text, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("pay_wallet_"))
 def pay_wallet(call):
-    _, _, product_id, qty = call.data.split("_")
-    product_id = int(product_id)
-    qty = int(qty)
+    product_id = int(call.data.split("_")[2])
     product = next((p for p in PRODUCTS if p["id"] == product_id), None)
     user = get_user(call.from_user.id)
-    total = product["price"] * qty
     if not product:
         bot.answer_callback_query(call.id, "محصول یافت نشد")
         return
-    if product["stock"] < qty:
+    if product["stock"] < 1:
         bot.send_message(call.message.chat.id, "❌ موجودی این محصول کافی نیست.")
         return
-    if user["wallet"] >= total:
-        user["wallet"] -= total
-        user["purchases"] += qty
+    if user["wallet"] >= product["price"]:
+        user["wallet"] -= product["price"]
+        user["purchases"] += 1
         set_user(call.from_user.id, user)
-        sent_count = 0
-        for _ in range(qty):
-            account = give_account(product_id, call.from_user.id)
-            if account:
-                bot.send_message(call.message.chat.id, f"✅ خرید موفق!\n\n📧 ایمیل: `{account['email']}`\n🔑 پسورد: `{account['pass']}`", parse_mode="Markdown")
-                sent_count += 1
-            else:
-                bot.send_message(call.message.chat.id, "❌ موجودی اکانت این محصول به پایان رسیده.")
-                break
-        bot.send_message(ADMIN_ID, f"🔔 خرید با کیف پول توسط {user['name']}\nمحصول: {product['name']}\nتعداد: {sent_count}\nموجودی باقی‌مانده: {product['stock']:,} عدد")
+        # اگر شخصی بود، بعد از پرداخت اسم بگیرد!
+        if product_id == 3:
+            bot.send_message(call.message.chat.id, "لطفاً اسم و فامیل صاحب اپل آیدی را وارد کنید:")
+            bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: save_name_personal(m, product_id))
+            return
+        # تحویل اپل آیدی آماده
+        account = give_account(product_id, call.from_user.id)
+        if account:
+            bot.send_message(call.message.chat.id, f"✅ خرید موفق!\n\n📧 ایمیل: `{account['email']}`\n🔑 پسورد: `{account['pass']}`", parse_mode="Markdown")
+        else:
+            bot.send_message(call.message.chat.id, "❌ موجودی اکانت این محصول به پایان رسیده.")
+        bot.send_message(ADMIN_ID, f"🔔 خرید با کیف پول توسط {user['name']}\nمحصول: {product['name']}")
     else:
         bot.send_message(call.message.chat.id, "❌ موجودی کیف پول شما کافی نیست.")
 
+def save_name_personal(message, product_id):
+    name = message.text
+    bot.send_message(message.chat.id, f"اسمتون ثبت شد: {name}\n\nسفارش اپل‌آیدی شخصی برای ادمین ارسال شد و طی ۱ تا ۲۴ ساعت ساخته و ارسال می‌شود.")
+    # اطلاع به ادمین برای ساخت اپل آیدی شخصی
+    user = get_user(message.from_user.id)
+    bot.send_message(ADMIN_ID, f"🔔 سفارش اپل آیدی شخصی\nکاربر: {user['name']} ({user['mobile']})\nنام صاحب اپل آیدی: {name}")
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith("pay_card_"))
 def pay_card(call):
-    _, _, product_id, qty = call.data.split("_")
-    product_id = int(product_id)
-    qty = int(qty)
+    product_id = int(call.data.split("_")[2])
     product = next((p for p in PRODUCTS if p["id"] == product_id), None)
     if not product:
         bot.answer_callback_query(call.id, "محصول یافت نشد")
         return
-    text = (
-        f"💳 برای خرید {qty} عدد {product['name']} به مبلغ {product['price']*qty:,} تومان:\n"
-        f"۱. مبلغ را به شماره کارت زیر واریز کنید:\n\n{CARD_NUMBER}\n\n"
-        f"۲. سپس رسید پرداخت را ارسال کنید."
-    )
-    bot.send_message(call.message.chat.id, text)
-    bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: receive_receipt(m, product, qty))
+    if product_id == 3:
+        bot.send_message(call.message.chat.id, f"💳 لطفاً مبلغ {product['price']:,} تومان را به شماره کارت زیر واریز کرده، تصویر رسید و **اسم صاحب اپل آیدی** را ارسال کنید:")
+    else:
+        bot.send_message(call.message.chat.id, f"💳 لطفاً مبلغ {product['price']:,} تومان را به شماره کارت زیر واریز و تصویر رسید را ارسال کنید:\n\n{CARD_NUMBER}")
+    bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: receive_receipt(m, product, product_id==3))
 
-def receive_receipt(message, product, qty):
+def receive_receipt(message, product, is_personal):
     if message.photo:
+        if is_personal:
+            bot.send_message(message.chat.id, "لطفاً اسم صاحب اپل آیدی را وارد کنید:")
+            bot.register_next_step_handler(message, lambda m: save_name_personal(m, product["id"]))
+            # ادمین در پیام قبلی رسید را دریافت می‌کند
+            photo_id = message.photo[-1].file_id
+            user = get_user(message.from_user.id)
+            bot.send_photo(ADMIN_ID, photo_id, caption=f"رسید پرداخت اپل آیدی شخصی از {user['name']} ({user['mobile']})")
+            return
         payment = {
             "user_id": message.from_user.id,
             "name": message.from_user.first_name,
             "product": product["name"],
-            "amount": product["price"] * qty,
-            "qty": qty,
+            "amount": product["price"],
             "type": "buy",
-            "status": "pending",
-            "msg_id": None
+            "status": "pending"
         }
         add_payment(payment)
-        caption = (
-            f"🆕 رسید خرید\n"
-            f"کاربر: {message.from_user.first_name}\n"
-            f"محصول: {product['name']}\n"
-            f"تعداد: {qty}\n"
-            f"مبلغ: {product['price']*qty:,} تومان\n"
-            f"برای پاسخ‌دهی، دکمه زیر را بزنید."
-        )
-        markup = telebot.types.InlineKeyboardMarkup()
-        markup.add(telebot.types.InlineKeyboardButton("تحویل اکانت و تایید خرید", callback_data=f"reply_buy_{message.from_user.id}_{product['id']}_{qty}"))
         photo_id = message.photo[-1].file_id
-        msg = bot.send_photo(ADMIN_ID, photo_id, caption=caption, reply_markup=markup)
-        payment["msg_id"] = msg.message_id
-        payments = get_payments()
-        payments[-1]["msg_id"] = msg.message_id
-        save_data(PAYMENTS_FILE, payments)
+        user = get_user(message.from_user.id)
+        # ادمین با دکمه تحویل اکانت تایید و تحویل می‌دهد
+        markup = telebot.types.InlineKeyboardMarkup()
+        markup.add(telebot.types.InlineKeyboardButton("تحویل اکانت آماده", callback_data=f"admin_sendacc_{product['id']}_{user['id']}"))
+        bot.send_photo(ADMIN_ID, photo_id, caption=f"رسید پرداخت {user['name']} - محصول: {product['name']}", reply_markup=markup)
         bot.send_message(message.chat.id, "✅ رسید شما ارسال شد، منتظر تایید مدیر باشید.")
     else:
         bot.send_message(message.chat.id, "❌ لطفاً تصویر رسید را ارسال کنید.")
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("reply_buy_"))
-def reply_to_buy(call):
-    _, _, user_id, product_id, qty = call.data.split("_")
-    user_id = int(user_id)
-    product_id = int(product_id)
-    qty = int(qty)
-    sent_count = 0
-    for _ in range(qty):
-        account = give_account(product_id, user_id)
-        if account:
-            bot.send_message(user_id, f"✅ خرید موفق!\n\n📧 ایمیل: `{account['email']}`\n🔑 پسورد: `{account['pass']}`", parse_mode="Markdown")
-            sent_count += 1
-        else:
-            bot.send_message(user_id, "❌ موجودی اکانت این محصول به پایان رسیده.")
-            break
-    bot.send_message(call.message.chat.id, f"اکانت‌ها ارسال شد (تعداد: {sent_count})")
-
-# ------------------------ حساب کاربری --------------------------
-@bot.message_handler(func=lambda m: m.text == "👤 حساب کاربری")
-def show_profile(message):
-    user = get_user(message.from_user.id)
-    acc_text = ""
-    if user and "accounts" in user and user["accounts"]:
-        acc_text = "\n🟢 اکانت‌های دریافتی شما:\n"
-        for i, acc in enumerate(user["accounts"], 1):
-            prod = next((p for p in PRODUCTS if p["id"] == acc["product_id"]), None)
-            acc_text += f"{i}. {prod['name']} | ایمیل: `{acc['email']}` | پسورد: `{acc['pass']}` | {acc['datetime']}\n"
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_sendacc_"))
+def admin_sendacc(call):
+    _, _, pid, uid = call.data.split("_")
+    pid = int(pid)
+    uid = int(uid)
+    account = give_account(pid, uid)
+    if account:
+        bot.send_message(uid, f"✅ خرید موفق!\n\n📧 ایمیل: `{account['email']}`\n🔑 پسورد: `{account['pass']}`", parse_mode="Markdown")
+        bot.send_message(call.message.chat.id, "اکانت برای کاربر ارسال شد.")
     else:
-        acc_text = "\nشما فعلاً اکانتی دریافت نکرده‌اید."
-    bot.send_message(message.chat.id,
-        f"👤 نام: {user['name']}\n📱 شماره: {user['mobile']}\n📆 تاریخ عضویت: {user['joined']}\n"
-        f"🛒 تعداد خرید: {user['purchases']}\n💰 موجودی کیف پول: {user['wallet']:,} تومان"
-        f"{acc_text}", parse_mode="Markdown")
+        bot.send_message(call.message.chat.id, "موجودی اکانت این محصول صفر است.")
 
-# ------------------------ تیکت پشتیبانی و گزارش خرابی --------------------------
-@bot.message_handler(func=lambda m: m.text == "📨 تیکت پشتیبانی")
-def support_menu(message):
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(telebot.types.KeyboardButton("باز کردن تیکت 🟢"))
-    markup.add(telebot.types.KeyboardButton("لیست تیکت‌های باز 🗂"))
-    markup.add(telebot.types.KeyboardButton("لیست چت‌ها 🗨️"))
-    markup.add(telebot.types.KeyboardButton("ارسال گزارش 📝"))
-    markup.add(telebot.types.KeyboardButton("بازگشت به منوی اصلی 🔙"))
-    bot.send_message(message.chat.id, "برای ارتباط با پشتیبانی یا مشاهده تیکت‌ها، گزینه مورد نظر را انتخاب کنید:", reply_markup=markup)
+# ------------------------ شارژ حساب --------------------------
+@bot.message_handler(func=lambda m: m.text == "💳 شارژ حساب")
+def charge_account(message):
+    bot.send_message(message.chat.id, f"مبلغ دلخواه خود را به شماره کارت زیر واریز کنید و رسید را ارسال کنید:\n\n{CARD_NUMBER}")
+    bot.register_next_step_handler(message, receive_charge_receipt)
 
-@bot.message_handler(func=lambda m: m.text == "باز کردن تیکت 🟢")
-def open_ticket(message):
-    supports = get_supports()
-    user_id = message.from_user.id
-    open_tickets = [t for t in supports if t["user_id"] == user_id and t["status"] == "open"]
-    if open_tickets:
-        bot.send_message(user_id, "شما یک تیکت باز دارید. ابتدا آن را ببندید یا ادامه دهید.")
-        return
-    bot.send_message(user_id, "موضوع تیکت را وارد کنید:")
-    bot.register_next_step_handler(message, create_ticket)
+def receive_charge_receipt(message):
+    if message.photo:
+        user = get_user(message.from_user.id)
+        photo_id = message.photo[-1].file_id
+        markup = telebot.types.InlineKeyboardMarkup()
+        markup.add(telebot.types.InlineKeyboardButton("پاسخ (شارژ کن)", callback_data=f"admin_charge_{user['id']}"))
+        bot.send_photo(ADMIN_ID, photo_id, caption=f"درخواست شارژ کیف پول از {user['name']} ({user['mobile']})", reply_markup=markup)
+        bot.send_message(message.chat.id, "✅ رسید ارسال شد. منتظر تایید مدیر باشید.")
+    else:
+        bot.send_message(message.chat.id, "❌ لطفاً تصویر رسید را ارسال کنید.")
 
-def create_ticket(message):
-    supports = get_supports()
-    user = get_user(message.from_user.id)
-    ticket_id = len(supports) + 1
-    ticket = {
-        "ticket_id": ticket_id,
-        "user_id": message.from_user.id,
-        "user_name": user["name"],
-        "status": "open",
-        "messages": [
-            {"sender": "user", "text": message.text, "datetime": str(datetime.datetime.now())[:19]}
-        ]
-    }
-    add_support(ticket)
-    bot.send_message(ADMIN_ID, f"🎫 تیکت #{ticket_id} جدید از {user['name']}:\n{message.text}")
-    bot.send_message(message.chat.id, f"تیکت شما با موفقیت ثبت شد. کد تیکت: #{ticket_id}")
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_charge_"))
+def admin_charge_user_call(call):
+    user_id = int(call.data.split("_")[2])
+    bot.send_message(call.message.chat.id, "مبلغ شارژ را برای کاربر وارد کنید (عدد تومان):")
+    bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: do_admin_charge(m, user_id))
 
-@bot.message_handler(func=lambda m: m.text == "لیست تیکت‌های باز 🗂")
-def list_open_tickets(message):
-    supports = get_supports()
-    user_id = message.from_user.id
-    open_tickets = [t for t in supports if t["user_id"] == user_id and t["status"] == "open"]
-    if not open_tickets:
-        bot.send_message(user_id, "⛔️ تیکت بازی ندارید.")
-        return
-    markup = telebot.types.InlineKeyboardMarkup()
-    for t in open_tickets:
-        markup.add(telebot.types.InlineKeyboardButton(
-            f"تیکت #{t['ticket_id']} | {t['messages'][0]['text'][:20]}", callback_data=f"view_ticket_{t['ticket_id']}"
-        ))
-    bot.send_message(user_id, "🗂 تیکت‌های باز شما:", reply_markup=markup)
-
-@bot.message_handler(func=lambda m: m.text == "لیست چت‌ها 🗨️")
-def show_prev_chats(message):
-    supports = get_supports()
-    user_id = message.from_user.id
-    tickets = [t for t in supports if t["user_id"] == user_id]
-    if not tickets:
-        bot.send_message(user_id, "هنوز چتی با پشتیبانی نداشتی!")
-        return
-    markup = telebot.types.InlineKeyboardMarkup()
-    for t in tickets:
-        status = "باز" if t["status"] == "open" else "بسته"
-        markup.add(telebot.types.InlineKeyboardButton(
-            f"تیکت #{t['ticket_id']} ({status})", callback_data=f"view_ticket_{t['ticket_id']}"
-        ))
-    bot.send_message(user_id, "لیست چت‌ها:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("view_ticket_"))
-def view_ticket(call):
-    ticket_id = int(call.data.split("_")[2])
-    supports = get_supports()
-    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
-    if not ticket:
-        bot.send_message(call.message.chat.id, "تیکت پیدا نشد.")
-        return
-    chat_history = ""
-    for msg in ticket["messages"]:
-        sender = "شما" if msg["sender"] == "user" else "پشتیبانی"
-        chat_history += f"{sender}: {msg['text']}\n"
-    markup = telebot.types.InlineKeyboardMarkup()
-    if ticket["status"] == "open":
-        markup.add(telebot.types.InlineKeyboardButton("ارسال پیام جدید", callback_data=f"reply_ticket_{ticket_id}"))
-    bot.send_message(call.message.chat.id, chat_history, reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("reply_ticket_"))
-def reply_ticket(call):
-    ticket_id = int(call.data.split("_")[2])
-    bot.send_message(call.message.chat.id, "پیام خود را وارد کنید:")
-    bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: save_ticket_reply(m, ticket_id))
-
-def save_ticket_reply(message, ticket_id):
-    supports = get_supports()
-    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
-    if not ticket or ticket["status"] != "open":
-        bot.send_message(message.chat.id, "تیکت معتبر نیست یا بسته شده.")
-        return
-    ticket["messages"].append({"sender": "user", "text": message.text, "datetime": str(datetime.datetime.now())[:19]})
-    save_data(SUPPORT_FILE, supports)
-    bot.send_message(ADMIN_ID, f"🔔 پیام جدید در تیکت #{ticket_id} از کاربر: {message.text}")
-    bot.send_message(message.chat.id, "پیام شما ارسال شد.")
-
-@bot.message_handler(func=lambda m: is_admin(m.from_user.id) and m.text.startswith("تیکت #"))
-def admin_view_ticket(message):
-    ticket_id = int(message.text.split("#")[1].split()[0])
-    supports = get_supports()
-    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
-    if not ticket:
-        bot.send_message(message.chat.id, "تیکت پیدا نشد.")
-        return
-    chat_history = ""
-    for msg in ticket["messages"]:
-        sender = "کاربر" if msg["sender"] == "user" else "ادمین"
-        chat_history += f"{sender}: {msg['text']}\n"
-    markup = telebot.types.InlineKeyboardMarkup()
-    if ticket["status"] == "open":
-        markup.add(
-            telebot.types.InlineKeyboardButton("پاسخ", callback_data=f"admin_reply_{ticket_id}"),
-            telebot.types.InlineKeyboardButton("بستن تیکت", callback_data=f"close_ticket_{ticket_id}")
-        )
-    bot.send_message(message.chat.id, chat_history, reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_reply_"))
-def admin_reply_ticket_call(call):
-    ticket_id = int(call.data.split("_")[2])
-    bot.send_message(call.message.chat.id, "پاسخ خود را وارد کنید:")
-    bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: save_admin_reply(m, ticket_id))
-
-def save_admin_reply(message, ticket_id):
-    supports = get_supports()
-    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
-    if not ticket or ticket["status"] != "open":
-        bot.send_message(message.chat.id, "تیکت معتبر نیست یا بسته شده.")
-        return
-    ticket["messages"].append({"sender": "admin", "text": message.text, "datetime": str(datetime.datetime.now())[:19]})
-    save_data(SUPPORT_FILE, supports)
-    bot.send_message(ticket["user_id"], f"📩 پاسخ پشتیبانی: {message.text}")
-    bot.send_message(message.chat.id, "✅ پیام شما به کاربر ارسال شد.")
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("close_ticket_"))
-def close_ticket(call):
-    ticket_id = int(call.data.split("_")[2])
-    supports = get_supports()
-    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
-    if ticket:
-        ticket["status"] = "closed"
-        save_data(SUPPORT_FILE, supports)
-        bot.send_message(call.message.chat.id, "✅ تیکت بسته شد.")
-        bot.send_message(ticket["user_id"], f"⛔️ تیکت #{ticket_id} شما توسط مدیریت بسته شد.")
-
-@bot.message_handler(func=lambda m: m.text == "ارسال گزارش 📝")
-def send_report(message):
-    user = get_user(message.from_user.id)
-    now = datetime.datetime.now()
-    recent_accs = []
-    if "accounts" in user:
-        for acc in user["accounts"]:
-            buy_time = datetime.datetime.strptime(acc["datetime"], "%Y-%m-%d %H:%M:%S")
-            if (now - buy_time).total_seconds() <= 48*3600:
-                recent_accs.append(acc)
-    if not recent_accs:
-        bot.send_message(message.chat.id, "شما هیچ اکانتی در ۴۸ ساعت اخیر خریداری نکردید.")
-        return
-    markup = telebot.types.InlineKeyboardMarkup()
-    for i, acc in enumerate(recent_accs, 1):
-        markup.add(telebot.types.InlineKeyboardButton(
-            f"{i}. {acc['email']}", callback_data=f"report_{acc['email']}"
-        ))
-    bot.send_message(message.chat.id, "کدام اکانت را برای خرابی انتخاب می‌کنید؟", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("report_"))
-def handle_report(call):
-    email = call.data.split("_")[1]
-    bot.send_message(call.message.chat.id, "لطفاً توضیح خرابی را بنویسید:")
-    bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: save_report(m, email))
-
-def save_report(message, email):
-    user = get_user(message.chat.id)
-    bot.send_message(ADMIN_ID, f"🚨 گزارش مشکل اکانت\nکاربر: {user['name']} ({user['mobile']})\nایمیل: {email}\nتوضیح: {message.text}")
-    bot.send_message(message.chat.id, "گزارش شما ارسال شد.")
-
-@bot.message_handler(func=lambda m: m.text == "بازگشت به منوی اصلی 🔙")
-def back_to_main(message):
-    send_main_menu(message.chat.id)
+def do_admin_charge(message, user_id):
+    if message.text.isdigit():
+        user = get_user(user_id)
+        user["wallet"] += int(message.text)
+        set_user(user_id, user)
+        bot.send_message(user_id, f"💰 کیف پول شما {int(message.text):,} تومان شارژ شد.")
+        bot.send_message(message.chat.id, "✅ کیف پول کاربر شارژ شد.")
+    else:
+        bot.send_message(message.chat.id, "فقط عدد وارد کنید:")
+        bot.register_next_step_handler(message, lambda m: do_admin_charge(m, user_id))
 
 # ------------------------ پنل مدیریت ویژه ادمین ------------------------
 @bot.message_handler(func=lambda m: m.text == "پنل مدیریت 👑" and is_admin(m.from_user.id))
@@ -523,8 +316,51 @@ def admin_panel(message):
     markup.add(telebot.types.KeyboardButton("شارژ مستقیم کاربر ➕"))
     markup.add(telebot.types.KeyboardButton("پیام همگانی 📢"))
     markup.add(telebot.types.KeyboardButton("مدیریت موجودی محصولات 🗃"))
+    markup.add(telebot.types.KeyboardButton("افزودن اکانت آماده ➕"))
     markup.add(telebot.types.KeyboardButton("بازگشت 🔙"))
     bot.send_message(message.chat.id, "🎛 پنل مدیریت:", reply_markup=markup)
+
+@bot.message_handler(func=lambda m: m.text == "افزودن اکانت آماده ➕" and is_admin(m.from_user.id))
+def add_account_start(message):
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for p in PRODUCTS[:2]:
+        markup.add(telebot.types.KeyboardButton(f"{p['name']}"))
+    bot.send_message(message.chat.id, "انتخاب کن کدام محصول را می‌خواهی اکانت آماده اضافه کنی:", reply_markup=markup)
+    bot.register_next_step_handler(message, add_account_input)
+
+def add_account_input(message):
+    pname = message.text.strip()
+    product = next((p for p in PRODUCTS if p["name"] == pname), None)
+    if not product or product["id"] == 3:
+        bot.send_message(message.chat.id, "فقط برای محصولات آماده می‌تونی اکانت اضافه کنی.")
+        return
+    bot.send_message(message.chat.id, "اکانت را به صورت:\nایمیل:پسورد\nوارد کن (مثال: test@mail.com:pass123):")
+    bot.register_next_step_handler(message, lambda m: save_account_ready(m, product["id"]))
+
+def save_account_ready(message, product_id):
+    try:
+        email, passwd = message.text.split(":")
+        accounts = load_accounts()
+        accounts[str(product_id)].append({"email": email.strip(), "pass": passwd.strip()})
+        save_accounts(accounts)
+        for p in PRODUCTS:
+            if p["id"] == product_id:
+                p["stock"] += 1
+        bot.send_message(message.chat.id, f"✅ اکانت اضافه شد. (الان {len(accounts[str(product_id)])} اکانت آماده داری)")
+    except:
+        bot.send_message(message.chat.id, "فرمت صحیح نیست. به صورت ایمیل:پسورد وارد کن.")
+
+# ------------------- باقی مانده مدیریت و بازگشت و پروفایل مثل قبل --------------------
+@bot.message_handler(func=lambda m: m.text == "لیست اعضا 👥" and is_admin(m.from_user.id))
+def show_users_list(message):
+    users = load_data(USERS_FILE, {})
+    msg = f"👥 تعداد کل اعضا: {len(users)}\n"
+    preview = "\n".join([f"{u['name']} | {u['mobile']}" for u in users.values()][:30])
+    if len(users) > 30:
+        msg += preview + "\n... (بقیه نمایش داده نشد)"
+    else:
+        msg += preview
+    bot.send_message(message.chat.id, msg)
 
 @bot.message_handler(func=lambda m: m.text == "مدیریت موجودی محصولات 🗃" and is_admin(m.from_user.id))
 def manage_stock(message):
@@ -562,17 +398,6 @@ def set_stock(message, product_id):
             break
     bot.send_message(message.chat.id, f"✅ موجودی محصول به {new_stock} تغییر کرد.")
 
-@bot.message_handler(func=lambda m: m.text == "لیست اعضا 👥" and is_admin(m.from_user.id))
-def show_users_list(message):
-    users = load_data(USERS_FILE, {})
-    msg = f"👥 تعداد کل اعضا: {len(users)}\n"
-    preview = "\n".join([f"{u['name']} | {u['mobile']}" for u in users.values()][:30])
-    if len(users) > 30:
-        msg += preview + "\n... (بقیه نمایش داده نشد)"
-    else:
-        msg += preview
-    bot.send_message(message.chat.id, msg)
-
 @bot.message_handler(func=lambda m: m.text == "شارژ مستقیم کاربر ➕" and is_admin(m.from_user.id))
 def admin_charge_user_start(message):
     bot.send_message(message.chat.id, "آی‌دی عددی یا شماره موبایل کاربر را وارد کنید:")
@@ -593,19 +418,18 @@ def admin_charge_user_amount(message):
         bot.send_message(message.chat.id, "کاربر پیدا نشد. دوباره تلاش کنید یا آی‌دی/شماره را درست وارد کنید.")
         return
     bot.send_message(message.chat.id, f"مبلغ شارژ (تومان) برای {target_user['name']} ({target_user['mobile']}) را وارد کنید:")
-    bot.register_next_step_handler(message, lambda m: admin_charge_user_do(m, target_user["id"]))
+    bot.register_next_step_handler(message, lambda m: do_admin_charge(m, target_user["id"]))
 
-def admin_charge_user_do(message, target_id):
+def do_admin_charge(message, user_id):
     if message.text.isdigit():
-        amount = int(message.text)
-        user = get_user(target_id)
-        user["wallet"] += amount
-        set_user(target_id, user)
-        bot.send_message(message.chat.id, f"کیف پول کاربر به مبلغ {amount:,} تومان شارژ شد.")
-        bot.send_message(target_id, f"💰 کیف پول شما توسط ادمین به مبلغ {amount:,} تومان شارژ شد.")
+        user = get_user(user_id)
+        user["wallet"] += int(message.text)
+        set_user(user_id, user)
+        bot.send_message(message.chat.id, f"کیف پول کاربر به مبلغ {message.text} تومان شارژ شد.")
+        bot.send_message(user_id, f"💰 کیف پول شما توسط ادمین به مبلغ {message.text} تومان شارژ شد.")
     else:
         bot.send_message(message.chat.id, "فقط عدد وارد کنید:")
-        bot.register_next_step_handler(message, lambda m: admin_charge_user_do(m, target_id))
+        bot.register_next_step_handler(message, lambda m: do_admin_charge(m, user_id))
 
 @bot.message_handler(func=lambda m: m.text == "پیام همگانی 📢" and is_admin(m.from_user.id))
 def admin_broadcast_start(message):
