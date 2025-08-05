@@ -87,10 +87,9 @@ def show_prices(message):
     bot.send_message(message.chat.id, text)
 @bot.message_handler(func=lambda m: m.text == "💳 شارژ حساب")
 def charge_account(message):
-    bot.send_message(message.chat.id, "برای شارژ کارت به کارت کنید و رسید را ارسال کنید:
+bot.send_message(message.chat.id, """برای شارژ کارت به کارت کنید و رسید را ارسال کنید:
 💳 کارت: XXXX-XXXX-XXXX-XXXX
-سپس تصویر رسید را ارسال کنید.")
-    bot.register_next_step_handler(message, receive_receipt)
+سپس تصویر رسید را ارسال کنید.""")    bot.register_next_step_handler(message, receive_receipt)
 
 def receive_receipt(message):
     if message.photo:
