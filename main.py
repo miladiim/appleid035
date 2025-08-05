@@ -4,9 +4,10 @@ import os
 import json
 
 # === Configurations ===
-API_TOKEN = '8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs'  # Existing token
-CHANNEL_ID = -1002891641618  # Your channel ID for forced join
-ADMIN_ID = 368422936         # Your admin user ID
+API_TOKEN = '8255151341:AAGFwWdSGnkoEVrTOej0jaNUco-DmgKlbCs'
+CHANNEL_ID = -1002891641618
+ADMIN_ID = 368422936
+CHANNEL_LINK = 'https://t.me/appleid035'
 
 bot = telebot.TeleBot(API_TOKEN)
 app = Flask(__name__)
@@ -14,6 +15,7 @@ app = Flask(__name__)
 # === Data Files ===
 APPLEID_FILE = 'apple_ids.json'
 PAYMENTS_FILE = 'payments.json'
+USERS_FILE = 'users.json'
 
 # === Helper functions ===
 def load_data(filename, default):
@@ -21,7 +23,10 @@ def load_data(filename, default):
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(default, f, ensure_ascii=False, indent=2)
     with open(filename, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return default
 
 def save_data(filename, data):
     with open(filename, 'w', encoding='utf-8') as f:
@@ -31,8 +36,17 @@ def is_member(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_ID, user_id)
         return member.status in ['member', 'administrator', 'creator']
-    except:
+    except Exception as e:
         return False
+
+def get_user(user_id):
+    users = load_data(USERS_FILE, {})
+    return users.get(str(user_id), {})
+
+def set_user(user_id, data):
+    users = load_data(USERS_FILE, {})
+    users[str(user_id)] = data
+    save_data(USERS_FILE, users)
 
 # === Load existing Apple IDs ===
 products = load_data(APPLEID_FILE, [
@@ -40,7 +54,7 @@ products = load_data(APPLEID_FILE, [
     {"name": "جیمیل 2025 جدید", "price": 77000, "stock": 12}
 ])
 
-# === Routes ===
+# === Flask Routes ===
 @app.route('/', methods=['GET'])
 def index():
     return 'Bot is running'
@@ -54,15 +68,15 @@ def webhook():
 # === Bot Menus ===
 def send_main_menu(chat_id):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(
+    markup.row(
         telebot.types.KeyboardButton("🛒 خرید اپل‌آیدی"),
         telebot.types.KeyboardButton("📨 تیکت پشتیبانی")
     )
-    markup.add(
+    markup.row(
         telebot.types.KeyboardButton("👤 حساب کاربری"),
         telebot.types.KeyboardButton("💳 شارژ حساب")
     )
-    markup.add(
+    markup.row(
         telebot.types.KeyboardButton("💲 قیمت و موجودی")
     )
     bot.send_message(chat_id, "📋 منوی اصلی:", reply_markup=markup)
@@ -71,21 +85,32 @@ def send_main_menu(chat_id):
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
+
     if not is_member(user_id):
         join_markup = telebot.types.InlineKeyboardMarkup()
-        join_markup.add(telebot.types.InlineKeyboardButton("عضویت در کانال", url="https://t.me/appleid035"))
+        join_markup.add(telebot.types.InlineKeyboardButton("عضویت در کانال", url=CHANNEL_LINK))
         bot.send_message(user_id, "برای استفاده از ربات ابتدا در کانال عضو شوید و سپس /start را بزنید.", reply_markup=join_markup)
         return
 
-    # درخواست شماره موبایل بعد از عضویت
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    btn = telebot.types.KeyboardButton("📱 ارسال شماره موبایل", request_contact=True)
-    markup.add(btn)
-    bot.send_message(user_id, "لطفاً شماره موبایل خود را ارسال کنید:", reply_markup=markup)
+    user = get_user(user_id)
+    if not user.get("mobile"):
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        btn = telebot.types.KeyboardButton("📱 ارسال شماره موبایل", request_contact=True)
+        markup.add(btn)
+        bot.send_message(user_id, "لطفاً شماره موبایل خود را ارسال کنید:", reply_markup=markup)
+    else:
+        send_main_menu(user_id)
 
 @bot.message_handler(content_types=['contact'])
 def handle_contact(message):
-    bot.send_message(message.chat.id, "✅ شماره شما ثبت شد.")
+    user_id = message.from_user.id
+    mobile = message.contact.phone_number
+
+    user = get_user(user_id)
+    user["mobile"] = mobile
+    set_user(user_id, user)
+
+    bot.send_message(message.chat.id, "✅ شماره شما با موفقیت ثبت شد.")
     send_main_menu(message.chat.id)
 
 @bot.message_handler(func=lambda m: m.text == "💲 قیمت و موجودی")
@@ -103,7 +128,7 @@ def charge_account(message):
     if not is_member(message.from_user.id):
         bot.send_message(message.chat.id, "❌ لطفاً ابتدا در کانال عضو شوید و سپس دوباره تلاش کنید.")
         return
-    bot.send_message(message.chat.id, """برای شارژ کارت به کارت کنید و رسید را ارسال کنید:
+    bot.send_message(message.chat.id, """برای شارژ حساب لطفاً کارت به کارت کنید و تصویر رسید را ارسال نمایید:
 💳 کارت: XXXX-XXXX-XXXX-XXXX
 سپس تصویر رسید را ارسال کنید.""")
     bot.register_next_step_handler(message, receive_receipt)
@@ -112,7 +137,11 @@ def receive_receipt(message):
     if message.photo:
         payments = load_data(PAYMENTS_FILE, [])
         payment_id = len(payments) + 1
-        payments.append({"id": payment_id, "user": message.from_user.id, "status": "pending"})
+        payments.append({
+            "id": payment_id,
+            "user": message.from_user.id,
+            "status": "pending"
+        })
         save_data(PAYMENTS_FILE, payments)
 
         approve_markup = telebot.types.InlineKeyboardMarkup()
@@ -141,11 +170,16 @@ def handle_payment_decision(call):
                 bot.send_message(CHANNEL_ID, f"💰 پرداخت کاربر {payment['user']} تایید شد.")
             elif action == "reject":
                 payment["status"] = "rejected"
-                bot.send_message(payment["user"], "❌ پرداخت شما رد شد. لطفاً مجدد اقدام کنید.")
+                bot.send_message(payment["user"], "❌ پرداخت شما رد شد. لطفاً مجدداً اقدام کنید.")
             break
 
     save_data(PAYMENTS_FILE, payments)
     bot.answer_callback_query(call.id, "عملیات انجام شد.")
+
+# === Fallback for any unhandled text ===
+@bot.message_handler(func=lambda m: True)
+def fallback(message):
+    send_main_menu(message.chat.id)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
