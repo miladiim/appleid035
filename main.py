@@ -519,6 +519,39 @@ def admin_panel(message):
     markup.add(telebot.types.KeyboardButton("افزودن اکانت آماده ➕"))
     markup.add(telebot.types.KeyboardButton("بازگشت 🔙"))
     bot.send_message(message.chat.id, "🎛 پنل مدیریت:", reply_markup=markup)
+@bot.message_handler(func=lambda m: m.text == "لیست تیکت‌های باز کاربران 🟢" and is_admin(m.from_user.id))
+def admin_list_open_tickets(message):
+    supports = get_supports()
+    open_tickets = [t for t in supports if t["status"] == "open"]
+    if not open_tickets:
+        bot.send_message(message.chat.id, "⛔️ تیکت بازی وجود ندارد.")
+        return
+    markup = telebot.types.InlineKeyboardMarkup()
+    for t in open_tickets:
+        uname = t.get("user_name", "")
+        markup.add(telebot.types.InlineKeyboardButton(
+            f"تیکت #{t['ticket_id']} | {uname}", callback_data=f"admin_view_ticket_{t['ticket_id']}"
+        ))
+    bot.send_message(message.chat.id, "🗂 لیست تیکت‌های باز کاربران:", reply_markup=markup)
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_view_ticket_"))
+def admin_view_ticket_btn(call):
+    ticket_id = int(call.data.split("_")[-1])
+    supports = get_supports()
+    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
+    if not ticket:
+        bot.send_message(call.message.chat.id, "تیکت پیدا نشد.")
+        return
+    chat_history = ""
+    for msg in ticket["messages"]:
+        sender = "کاربر" if msg["sender"] == "user" else "ادمین"
+        chat_history += f"{sender}: {msg['text']}\n"
+    markup = telebot.types.InlineKeyboardMarkup()
+    if ticket["status"] == "open":
+        markup.add(
+            telebot.types.InlineKeyboardButton("پاسخ", callback_data=f"admin_reply_{ticket_id}"),
+            telebot.types.InlineKeyboardButton("بستن تیکت", callback_data=f"close_ticket_{ticket_id}")
+        )
+    bot.send_message(call.message.chat.id, chat_history, reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text == "افزودن اکانت آماده ➕" and is_admin(m.from_user.id))
 def add_account_start(message):
