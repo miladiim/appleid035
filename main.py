@@ -553,13 +553,12 @@ def save_account_ready(message, product_id):
 def show_users_list(message):
     users = load_data(USERS_FILE, {})
     msg = f"👥 تعداد کل اعضا: {len(users)}\n"
-    preview = "\n".join([f"{u['name']} | {u['mobile']}" for u in users.values()][:30])
+    preview = "\n".join([f"{u['name']} | {u['mobile']} | ID: {u['id']}" for u in users.values()][:30])
     if len(users) > 30:
         msg += preview + "\n... (بقیه نمایش داده نشد)"
     else:
         msg += preview
     bot.send_message(message.chat.id, msg)
-
 @bot.message_handler(func=lambda m: m.text == "مدیریت موجودی محصولات 🗃" and is_admin(m.from_user.id))
 def manage_stock(message):
     markup = telebot.types.InlineKeyboardMarkup()
