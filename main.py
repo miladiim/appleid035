@@ -45,34 +45,25 @@ def set_user(user_id, user):
     users[str(user_id)] = user
     save_data(USERS_FILE, users)
 
-def add_payment(payment):
-    payments = load_data(PAYMENTS_FILE, [])
-    payments.append(payment)
-    save_data(PAYMENTS_FILE, payments)
+def is_admin(user_id):
+    return user_id == ADMIN_ID
 
-def get_payments():
-    return load_data(PAYMENTS_FILE, [])
-
-def add_support(support):
-    supports = load_data(SUPPORT_FILE, [])
-    supports.append(support)
-    save_data(SUPPORT_FILE, supports)
-
-def get_supports():
-    return load_data(SUPPORT_FILE, [])
-
-def load_accounts():
-    return load_data(ACCOUNTS_FILE, {"1": [], "2": []})
-
-def save_accounts(data):
-    save_data(ACCOUNTS_FILE, data)
+def get_ip(req):
+    try:
+        if req.headers.getlist("X-Forwarded-For"):
+            ip = req.headers.getlist("X-Forwarded-For")[0]
+        else:
+            ip = req.remote_addr
+    except:
+        ip = 'unknown'
+    return ip
 
 def give_account(product_id, user_id):
-    accounts = load_accounts()
+    accounts = load_data(ACCOUNTS_FILE, {"1": [], "2": []})
     product_accounts = accounts.get(str(product_id), [])
     if product_accounts:
         account = product_accounts.pop(0)
-        save_accounts(accounts)
+        save_data(ACCOUNTS_FILE, accounts)
         user = get_user(user_id)
         if "accounts" not in user:
             user["accounts"] = []
@@ -89,20 +80,6 @@ def give_account(product_id, user_id):
         return account
     else:
         return None
-
-def is_admin(user_id):
-    return user_id == ADMIN_ID
-
-# --------------- تابع جدید برای دریافت IP ----------------
-def get_ip(req):
-    try:
-        if req.headers.getlist("X-Forwarded-For"):
-            ip = req.headers.getlist("X-Forwarded-For")[0]
-        else:
-            ip = req.remote_addr
-    except:
-        ip = 'unknown'
-    return ip
 
 def send_main_menu(chat_id):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -229,10 +206,10 @@ def pay_wallet(call):
         else:
             bot.send_message(call.message.chat.id, "❌ موجودی اکانت این محصول به پایان رسیده.")
         bot.send_message(ADMIN_ID, f"🔔 خرید با کیف پول توسط {user['name']}\nمحصول: {product['name']}")
+        send_main_menu(call.message.chat.id)
     else:
         bot.send_message(call.message.chat.id, "❌ موجودی کیف پول شما کافی نیست.")
 
-# =========== اصلاحیه برای کارت به کارت ============
 @bot.callback_query_handler(func=lambda call: call.data.startswith("pay_card_"))
 def pay_card(call):
     product_id = int(call.data.split("_")[2])
@@ -261,6 +238,7 @@ def receive_receipt(message, product, is_personal):
         ))
         bot.send_photo(ADMIN_ID, photo_id, caption=f"رسید پرداخت {user['name']} - محصول: {product['name']}", reply_markup=markup)
         bot.send_message(message.chat.id, "✅ رسید شما ارسال شد و منتظر تایید مدیر باشید.")
+        send_main_menu(message.chat.id)
     else:
         bot.send_message(message.chat.id, "❌ لطفاً تصویر رسید را ارسال کنید.")
 
@@ -277,6 +255,7 @@ def save_name_personal(message, product_id, photo_id=None):
     else:
         bot.send_message(ADMIN_ID, caption, reply_markup=markup)
     bot.send_message(message.chat.id, "✅ سفارش شما ثبت شد. اطلاعات به ادمین ارسال شد. تا ۲۴ ساعت اکانت دریافت می‌کنید.")
+    send_main_menu(message.chat.id)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("admin_personal_answer_"))
 def admin_personal_answer(call):
@@ -287,10 +266,9 @@ def admin_personal_answer(call):
 def send_personal_answer(message, user_id):
     bot.send_message(user_id, f"👑 اکانت شما آماده شد:\n{message.text}")
     bot.send_message(message.chat.id, "اطلاعات برای کاربر ارسال شد.")
+    send_main_menu(message.chat.id)
 
-# ------------------------ (بقیه بخش‌ها همان نسخه قبلی) ------------------------
-# بدون هیچ تغییری، همه چیز مثل قبل می‌ماند.
-# اگر برای لیست اعضا، خواستی IP نمایش داده شود:
+# ------------------ بخش نمایش اعضا با IP -----------------
 @bot.message_handler(func=lambda m: m.text == "لیست اعضا 👥" and is_admin(m.from_user.id))
 def show_users_list(message):
     users = load_data(USERS_FILE, {})
@@ -304,6 +282,11 @@ def show_users_list(message):
     else:
         msg += preview
     bot.send_message(message.chat.id, msg)
+
+# -------------- فیدبک برای سایر مسیرهای متنی ----------------
+@bot.message_handler(func=lambda m: True)
+def fallback(message):
+    send_main_menu(message.chat.id)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
