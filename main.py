@@ -649,6 +649,57 @@ def admin_back(message):
 @bot.message_handler(func=lambda m: True)
 def fallback(message):
     send_main_menu(message.chat.id)
+# ارسال کد تیکت توسط ادمین برای مشاهده و مدیریت
+@bot.message_handler(func=lambda m: is_admin(m.from_user.id) and m.text.startswith("تیکت #"))
+def admin_view_ticket(message):
+    try:
+        ticket_id = int(message.text.split("#")[1].split()[0])
+    except:
+        bot.send_message(message.chat.id, "کد تیکت نامعتبر است.")
+        return
+    supports = get_supports()
+    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
+    if not ticket:
+        bot.send_message(message.chat.id, "تیکت پیدا نشد.")
+        return
+    chat_history = ""
+    for msg in ticket["messages"]:
+        sender = "کاربر" if msg["sender"] == "user" else "ادمین"
+        chat_history += f"{sender}: {msg['text']}\n"
+    markup = telebot.types.InlineKeyboardMarkup()
+    if ticket["status"] == "open":
+        markup.add(
+            telebot.types.InlineKeyboardButton("پاسخ", callback_data=f"admin_reply_{ticket_id}"),
+            telebot.types.InlineKeyboardButton("بستن تیکت", callback_data=f"close_ticket_{ticket_id}")
+        )
+    bot.send_message(message.chat.id, chat_history, reply_markup=markup)
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_reply_"))
+def admin_reply_ticket_call(call):
+    ticket_id = int(call.data.split("_")[2])
+    bot.send_message(call.message.chat.id, "پاسخ خود را وارد کنید:")
+    bot.register_next_step_handler_by_chat_id(call.message.chat.id, lambda m: save_admin_reply(m, ticket_id))
+
+def save_admin_reply(message, ticket_id):
+    supports = get_supports()
+    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
+    if not ticket or ticket["status"] != "open":
+        bot.send_message(message.chat.id, "تیکت معتبر نیست یا بسته شده.")
+        return
+    ticket["messages"].append({"sender": "admin", "text": message.text, "datetime": str(datetime.datetime.now())[:19]})
+    save_data(SUPPORT_FILE, supports)
+    bot.send_message(ticket["user_id"], f"📩 پاسخ پشتیبانی: {message.text}")
+    bot.send_message(message.chat.id, "✅ پیام شما به کاربر ارسال شد.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("close_ticket_"))
+def close_ticket(call):
+    ticket_id = int(call.data.split("_")[2])
+    supports = get_supports()
+    ticket = next((t for t in supports if t["ticket_id"] == ticket_id), None)
+    if ticket:
+        ticket["status"] = "closed"
+        save_data(SUPPORT_FILE, supports)
+        bot.send_message(call.message.chat.id, "✅ تیکت بسته شد.")
+        bot.send_message(ticket["user_id"], f"⛔️ تیکت #{ticket_id} شما توسط مدیریت بسته شد.")
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
