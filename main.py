@@ -513,6 +513,7 @@ def admin_panel(message):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(telebot.types.KeyboardButton("لیست اعضا 👥"))
     markup.add(telebot.types.KeyboardButton("شارژ مستقیم کاربر ➕"))
+    markup.add(telebot.types.KeyboardButton("لیست تیکت‌های باز کاربران 🟢"))
     markup.add(telebot.types.KeyboardButton("پیام همگانی 📢"))
     markup.add(telebot.types.KeyboardButton("مدیریت موجودی محصولات 🗃"))
     markup.add(telebot.types.KeyboardButton("افزودن اکانت آماده ➕"))
