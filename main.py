@@ -740,4 +740,4 @@ def close_ticket(call):
         bot.send_message(call.message.chat.id, "✅ تیکت بسته شد.")
         bot.send_message(ticket["user_id"], f"⛔️ تیکت #{ticket_id} شما توسط مدیریت بسته شد.")
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5050)
