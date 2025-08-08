@@ -107,9 +107,12 @@ def send_main_menu(chat_id):
         markup.row(telebot.types.KeyboardButton("پنل مدیریت 👑"))
     bot.send_message(chat_id, "📋 منوی اصلی:", reply_markup=markup)
 
+from flask import Response
+
 @app.route('/', methods=['GET'])
 def index():
-    return 'Bot is running'
+    return Response('Bot is running', content_type='text/html; charset=utf-8')
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
